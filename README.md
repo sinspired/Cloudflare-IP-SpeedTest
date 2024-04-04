@@ -5,7 +5,7 @@ Cloudflare IP 测速器是一个使用 Golang 编写的小工具，用于测试�
 首先安装 Golang 和 Git，然后在终端中运行以下命令：
 
 ```
-git clone https://github.com/badafans/Cloudflare-IP-SpeedTest.git
+git clone https://github.com/sinspired/Cloudflare-IP-SpeedTest.git
 cd Cloudflare-IP-SpeedTest
 go build -o ipspeedtest main.go
 ```
@@ -21,19 +21,25 @@ ipspeedtest 可以接受以下参数：
 - speedtest: 下载测速协程数量,设为0禁用测速 (default 5)
 - tls: 是否启用TLS (default true)
 - url: 测速文件地址 (default "speed.cloudflare.com/__down?bytes=500000000")
-
+- speedlimit: 最低下载速度(MB/s) (default 2)
+- mulnum：测速补偿系数 (default 1)
+- tcplimit：TCP最大延迟(ms) (default 200)
 # 运行
 在终端中运行以下命令来启动程序：
 
 ```
-./ipspeedtest -file=ip.txt -outfile=ip.csv -port=443 -max=100 -speedtest=1 -tls=true -url=speed.cloudflare.com/__down?bytes=500000000
+./ipspeedtest -file=ip.txt -outfile=ip.csv -port=443 -max=100 -speedtest=1  -speedlimit=5 -tls=true -mulnum=1 -tcplimit=100 -url="speed.cloudflare.com/__down?bytes=500000000"
 ```
 请替换参数值以符合您的实际需求。
-
 # 输出说明
-程序将输出每个成功测试的 IP 地址的信息，包括 IP 地址、端口、数据中心、地区、城市、网络延迟和下载速度（如果选择测速）。
+程序将输出每个成功测试的 IP 地址的信息，包括 IP 地址、端口、数据中心、地区、域名后缀、城市、网络延迟(ms)和下载速度(MB/s)（如果选择测速）。
+网址、文件路径参数需要加""，比如"ip.txt"
 
 程序还会将所有结果写入一个 CSV 文件中。
+
+本分支优化了输出结果显示，增加了顶级域名列。
+
+
 
 # 许可证
 The MIT License (MIT)
