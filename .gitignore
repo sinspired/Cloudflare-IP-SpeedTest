@@ -5,6 +5,7 @@
 *.so
 *.dylib
 *.ini
+*.yaml
 
 
 # Test binary, built with `go test -c`
@@ -16,7 +17,9 @@
 *.csv
 *.rar
 *.txt
-*.json
+*.zip
+*.bat
+locations.json
 
 
 # Dependency directories (remove the comment below to include it)
@@ -33,3 +36,4 @@ build/
 bin/
 temp/
 test/
+ipLAB/

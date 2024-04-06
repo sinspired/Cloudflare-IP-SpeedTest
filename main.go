@@ -3,12 +3,12 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/csv"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
@@ -23,11 +23,13 @@ import (
 
 	"github.com/mattn/go-ieproxy"
 	"golang.org/x/sys/windows/registry"
+
+	"ipspeedtest/task"
 )
 
 var (
 	requestURL       = "speed.cloudflare.com/cdn-cgi/trace"     // 请求trace URL
-	locationsJsonUrl = "https://speed.cloudflare.com/locations" //location.json下载 URL
+	locationsJsonUrl = "https://speed.cloudflare.com/locations" // location.json下载 URL
 )
 
 const (
@@ -36,16 +38,17 @@ const (
 )
 
 var (
-	File         = flag.String("file", "ip.txt", "IP地址文件名称")                                   // IP地址文件名称
+	File         = flag.String("file", "ip.txt", "IP地址文件名称(*.txt)")                            // IP地址文件名称
+	FileZip      = flag.String("filezip", "txt.zip", "IP文件压缩包名称(*.zip)")                       // IP地址文件名称
 	outFile      = flag.String("outfile", "ip.csv", "输出结果文件名称")                                // 输出结果文件名称
 	defaultPort  = flag.Int("port", 443, "端口")                                                 // 端口
 	maxThreads   = flag.Int("max", 100, "并发请求最大线程数")                                           // 最大线程数
 	speedTest    = flag.Int("speedtest", 5, "下载测速线程数量,设为0禁用测速")                                // 下载测速线程数量
-	speedLimit   = flag.Int("speedlimit", 2, "最低下载速度，默认2MB/s")                                 // 最低下载速度
+	speedLimit   = flag.Int("speedlimit", 2, "最低下载速度(MB/s)")                                   // 最低下载速度
 	speedTestURL = flag.String("url", "speed.cloudflare.com/__down?bytes=500000000", "测速文件地址") // 测速文件地址
 	enableTLS    = flag.Bool("tls", true, "是否启用TLS")                                           // TLS是否启用
-	multipleNum  = flag.Float64("mulnum", 1, "多线程测速造成测速不准，可进行倍数补偿")                            //speedTest比较大时修改
-	tcpLimit     = flag.Int("tcplimit", 1000, "TCP最大延迟，默认1000 ms")                             // 最低下载速度
+	multipleNum  = flag.Float64("mulnum", 1, "多线程测速造成测速不准，可进行倍数补偿")                            // speedTest比较大时修改
+	tcpLimit     = flag.Int("tcplimit", 1000, "TCP最大延迟(ms)")                                   // 最低下载速度
 )
 
 type result struct {
@@ -100,11 +103,11 @@ func downloadWithIEProxy(downloadURL string) ([]byte, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := ioutil.ReadAll(resp.Body) // 尝试读取响应体以获取更多错误信息
+		body, _ := io.ReadAll(resp.Body) // 尝试读取响应体以获取更多错误信息
 		return nil, fmt.Errorf("非预期的HTTP状态码: %v, 响应体: %s", resp.Status, string(body))
 	}
 
-	return ioutil.ReadAll(resp.Body)
+	return io.ReadAll(resp.Body)
 }
 
 // 定义外网域名google.com检测函数
@@ -122,18 +125,18 @@ func checkProxyEnabled() bool {
 		return false
 	}
 
-	return proxyEnable == 1 //proxyEnable键值若为1，说明开启了代理服务器，返回true
+	return proxyEnable == 1 // proxyEnable键值若为1，说明开启了代理服务器，返回true
 }
 
 // checkNormalUrl 尝试连接指定的URL，检查网站是否可访问
 func checkNormalUrl(url string) bool {
 	resp, err := http.Get(url)
 	if err != nil {
-		//fmt.Printf("访问 %s 时未知错误:[ %v ]\n", url, err)
+		// fmt.Printf("访问 %s 时未知错误:[ %v ]\n", url, err)
 		return false
 	}
 	defer resp.Body.Close()
-	//fmt.Println("检测可以ping通:" + url)
+	// fmt.Println("检测可以ping通:" + url)
 	return true
 }
 
@@ -147,12 +150,12 @@ func checkProxyUrl(urlStr string) bool {
 
 	resp, err := client.Get(urlStr)
 	if err != nil {
-		//fmt.Printf("Error accessing %s: %v\n", urlStr, err)
+		// fmt.Printf("连通性错误 %s: %v\n", urlStr, err)
 		return false
 	}
 	defer resp.Body.Close()
 
-	//fmt.Println("成功连接: " + urlStr)
+	// fmt.Println("成功连接: " + urlStr)
 	return true
 }
 
@@ -180,7 +183,7 @@ func main() {
 		}*/
 
 	// 检查location.json文件，如不存在，则从网络下载
-	var locations []location //创建location数组以存储json文件，
+	var locations []location // 创建location数组以存储json文件，
 	if _, err := os.Stat("locations.json"); os.IsNotExist(err) {
 		fmt.Println("正在从 " + locationsJsonUrl + " 下载 locations.json")
 
@@ -191,7 +194,7 @@ func main() {
 		}
 		// 检查下载的数据
 		fmt.Printf("下载的数据长度: %d\n", len(body))
-		//fmt.Printf("下载的数据内容: %s\n", string(body))
+		// fmt.Printf("下载的数据内容: %s\n", string(body))
 
 		err = json.Unmarshal(body, &locations)
 		if err != nil {
@@ -219,7 +222,7 @@ func main() {
 		}
 		defer file.Close()
 
-		body, err := ioutil.ReadAll(file)
+		body, err := io.ReadAll(file)
 		if err != nil {
 			fmt.Printf("无法读取文件: %v\n", err)
 			return
@@ -262,6 +265,31 @@ func main() {
 	}
 
 	// 如果Google不可访问，Baidu可以访问，说明网络环境正常。开始读取ip列表进行tcp延迟检测
+
+	// 判断输入ip文件逻辑
+	if *File == "ip.txt" {
+		if *FileZip == "txt.zip" {
+			if _, err := os.Stat("ip.txt"); os.IsExist(err) {
+			} else if _, err := os.Stat("txt.zip"); os.IsNotExist(err) {
+				fmt.Println("未发现 ip.txt 或 txt.zip 文件")
+				return
+			}
+			// 调用unZip2txt.go文件内的函数处理ZIP文件
+			err := task.UnZip2txtFile(*FileZip, "ipUnziped.txt")
+			if err != nil {
+				panic(err)
+			}
+			*File = "ipUnziped.txt"
+		}
+		// 调用unZip2txt.go文件内的函数处理ZIP文件
+		err := task.UnZip2txtFile(*FileZip, "ipUnziped.txt")
+		if err != nil {
+			panic(err)
+		}
+		*File = "ipUnziped.txt"
+	}
+
+	// 根据指定IP文件路径读取ip列表
 	ips, err := readIPs(*File)
 	if err != nil {
 		fmt.Printf("\033[31m无法从文件中读取 IP: %v\033[0m\n", err)
@@ -275,8 +303,8 @@ func main() {
 
 	thread := make(chan struct{}, *maxThreads)
 
-	var countAll int   //TCP延迟检测计数器
-	var countAlive int //有效IP计数器
+	var countAll int   // TCP延迟检测计数器
+	var countAlive int // 有效IP计数器
 	total := len(ips)
 
 	for _, ip := range ips {
@@ -287,7 +315,7 @@ func main() {
 
 		if countAll == total {
 			fmt.Printf("\n")
-			//fmt.Printf("\n已完成: %d 发现有效ip: %d ---任务进度：[ %.0f%% ]\n", countAll, countAlive,percentage)
+			// fmt.Printf("\n已完成: %d 发现有效ip: %d ---任务进度：[ %.0f%% ]\n", countAll, countAlive,percentage)
 		}
 
 		thread <- struct{}{}
@@ -310,7 +338,11 @@ func main() {
 				KeepAlive: 0,
 			}
 			start := time.Now()
-			conn, err := dialer.Dial("tcp", net.JoinHostPort(ip, strconv.Itoa(*defaultPort)))
+			// conn, err := dialer.Dial("tcp", net.JoinHostPort(ip, strconv.Itoa(*defaultPort))),已淘汰的Dial
+
+			//使用新的DialContext函数,这里context.Background()提供了一个空的上下文
+			conn, err := dialer.DialContext(context.Background(), "tcp", net.JoinHostPort(ip, strconv.Itoa(*defaultPort)))
+
 			if err != nil {
 				return
 			}
@@ -321,7 +353,8 @@ func main() {
 
 			client := http.Client{
 				Transport: &http.Transport{
-					Dial: func(network, addr string) (net.Conn, error) {
+					// 使用新的DialContext函数
+					DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 						return conn, nil
 					},
 				},
@@ -352,14 +385,17 @@ func main() {
 			}
 
 			buf := &bytes.Buffer{}
+			body := buf // 将body声明移动到这里
 			// 创建一个读取操作的超时
 			timeout := time.After(maxDuration)
 			// 使用一个 goroutine 来读取响应体
 			done := make(chan bool)
 			go func() {
-				_, err := io.Copy(buf, resp.Body)
+				_, copyErr := io.Copy(buf, resp.Body)
 				done <- true
-				if err != nil {
+				if copyErr != nil {
+					// 在这里处理goroutine中的错误
+					fmt.Printf("读取响应体错误: %v", copyErr)
 					return
 				}
 			}()
@@ -367,18 +403,16 @@ func main() {
 			select {
 			case <-done:
 				// 读取操作完成
-
 			case <-timeout:
 				// 读取操作超时
 				return
 			}
 
-			body := buf
-			if err != nil {
-				// 处理错误，例如日志记录
-				fmt.Printf("Error occurred: %v", err)
-				return
-			}
+			// if err != nil {
+			// 	// 处理错误，例如日志记录
+			// 	fmt.Printf("Error occurred: %v", err)
+			// 	return
+			// }
 
 			if strings.Contains(body.String(), "uag=Mozilla/5.0") {
 				if matches := regexp.MustCompile(`colo=([A-Z]+)`).FindStringSubmatch(body.String()); len(matches) > 1 {
@@ -387,10 +421,10 @@ func main() {
 					if float64(tcpDuration.Milliseconds()) <= float64(*tcpLimit) {
 						if ok {
 							fmt.Printf("发现有效IP %s 位置: %s.%s 延迟 %d 毫秒\n", ip, loc.City, loc.Cca2, tcpDuration.Milliseconds())
-							resultChan <- result{ip, *defaultPort, dataCenter, loc.Region, loc.Cca2, loc.City, fmt.Sprintf("%d", tcpDuration.Milliseconds()), tcpDuration} //删掉excel中的 ms单位。tcpDuration变量
+							resultChan <- result{ip, *defaultPort, dataCenter, loc.Region, loc.Cca2, loc.City, fmt.Sprintf("%d", tcpDuration.Milliseconds()), tcpDuration} // 删掉excel中的 ms单位。tcpDuration变量
 						} else {
 							fmt.Printf("发现有效IP %s 位置信息未知 延迟 %d 毫秒\n", ip, tcpDuration.Milliseconds())
-							resultChan <- result{ip, *defaultPort, dataCenter, "", "", "", fmt.Sprintf("%d", tcpDuration.Milliseconds()), tcpDuration} //删掉excel中的 ms单位。tcpDuration变量
+							resultChan <- result{ip, *defaultPort, dataCenter, "", "", "", fmt.Sprintf("%d", tcpDuration.Milliseconds()), tcpDuration} // 删掉excel中的 ms单位。tcpDuration变量
 						}
 						countAlive++
 					}
@@ -405,7 +439,7 @@ func main() {
 
 	if len(resultChan) == 0 {
 		// 清除输出内容
-		//fmt.Print("\033[2J")
+		// fmt.Print("\033[2J")
 		fmt.Println("\033[31m没有发现有效的IP\033[0m")
 		return
 	}
@@ -416,7 +450,7 @@ func main() {
 		fmt.Printf("\n开始下载测速\n")
 		var wg2 sync.WaitGroup
 		wg2.Add(*speedTest)
-		countSt = 0 //下载测速进度计数器
+		countSt = 0 // 下载测速进度计数器
 		total := len(resultChan)
 		results = []speedtestresult{}
 		for i := 0; i < *speedTest; i++ {
@@ -428,17 +462,16 @@ func main() {
 				}()
 				for res := range resultChan {
 
-					countSt++ //记录下载测速进度
+					countSt++ // 记录下载测速进度
 					percentage := float64(countSt) / float64(total) * 100
-					//fmt.Printf("已完成: %.2f%%\r", percentage)
+					// fmt.Printf("已完成: %.2f%%\r", percentage)
 
 					downloadSpeed := getDownloadSpeed(res.ip)
 					results = append(results, speedtestresult{result: res, downloadSpeed: downloadSpeed})
 					if percentage == 100 {
 						// 清除输出内容
-						//fmt.Print("\033[2J")
+						// fmt.Print("\033[2J")
 						fmt.Printf("下载测速进度 \033[1;32m%.2f%%\033[0m\n", percentage)
-
 					}
 
 				}
@@ -462,34 +495,32 @@ func main() {
 		})
 	}
 
+	// 默认输出结果文件
 	file, err := os.Create(*outFile)
 	if err != nil {
 		fmt.Printf("无法创建文件: %v\n", err)
 		return
 	}
 	defer file.Close()
+	file.WriteString("\xEF\xBB\xBF") // 标记为utf-8 bom编码,防止excel打开中文乱码
 
-	// 标记为utf-8 bom编码,防止excel打开中文乱码
-	file.WriteString("\xEF\xBB\xBF")
-
-	file2, err := os.Create("lowspeedList.csv")
+	// 未达标的测速ip输出到一个文件
+	fileUnqualified, err := os.Create("lowspeedList.csv")
 	if err != nil {
 		fmt.Printf("无法创建文件: %v\n", err)
 		return
 	}
-	defer file2.Close()
-
-	// 标记为utf-8 bom编码,防止excel打开中文乱码
-	file2.WriteString("\xEF\xBB\xBF")
-	writer2 := csv.NewWriter(file2)
+	defer fileUnqualified.Close()
+	fileUnqualified.WriteString("\xEF\xBB\xBF") // 标记为utf-8 bom编码,防止excel打开中文乱码
 
 	writer := csv.NewWriter(file)
+	writerUnqualified := csv.NewWriter(fileUnqualified)
 	if *speedTest > 0 {
 		writer.Write([]string{"IP地址", "端口", "TLS", "数据中心", "地区", "域名后缀", "城市", "网络延迟(ms)", "下载速度(MB/s)"})
-		writer2.Write([]string{"IP地址", "端口", "TLS", "数据中心", "地区", "域名后缀", "城市", "网络延迟(ms)", "下载速度(MB/s)"})
+		writerUnqualified.Write([]string{"IP地址", "端口", "TLS", "数据中心", "地区", "域名后缀", "城市", "网络延迟(ms)", "下载速度(MB/s)"})
 	} else {
 		writer.Write([]string{"IP地址", "端口", "TLS", "数据中心", "地区", "域名后缀", "城市", "网络延迟(ms)"})
-		writer2.Write([]string{"IP地址", "端口", "TLS", "数据中心", "地区", "域名后缀", "城市", "网络延迟(ms)"})
+		writerUnqualified.Write([]string{"IP地址", "端口", "TLS", "数据中心", "地区", "域名后缀", "城市", "网络延迟(ms)"})
 	}
 
 	fmt.Printf("\n优选测速结果：\n")
@@ -499,21 +530,21 @@ func main() {
 				writer.Write([]string{res.result.ip, strconv.Itoa(res.result.port), strconv.FormatBool(*enableTLS), res.result.dataCenter, res.result.region, res.result.domainAbbr, res.result.city, res.result.latency, fmt.Sprintf("%.1f", res.downloadSpeed)})
 				fmt.Printf("IP %s 下载速度 %.1f MB/s,高于 %d MB/s，已写入 %s!\n", res.result.ip, res.downloadSpeed, *speedLimit, *outFile)
 			} else {
-				writer2.Write([]string{res.result.ip, strconv.Itoa(res.result.port), strconv.FormatBool(*enableTLS), res.result.dataCenter, res.result.region, res.result.domainAbbr, res.result.city, res.result.latency, fmt.Sprintf("%.1f", res.downloadSpeed)})
+				writerUnqualified.Write([]string{res.result.ip, strconv.Itoa(res.result.port), strconv.FormatBool(*enableTLS), res.result.dataCenter, res.result.region, res.result.domainAbbr, res.result.city, res.result.latency, fmt.Sprintf("%.1f", res.downloadSpeed)})
 
 				fmt.Printf("IP %s 下载速度 %.1f MB/s,低于 %d MB/s，已写入 lowspeedList.csv\n", res.result.ip, res.downloadSpeed, *speedLimit)
 			}
 		} else {
 			writer.Write([]string{res.result.ip, strconv.Itoa(res.result.port), strconv.FormatBool(*enableTLS), res.result.dataCenter, res.result.region, res.result.domainAbbr, res.result.city, res.result.latency})
-			writer2.Write([]string{res.result.ip, strconv.Itoa(res.result.port), strconv.FormatBool(*enableTLS), res.result.dataCenter, res.result.region, res.result.domainAbbr, res.result.city, res.result.latency})
+			writerUnqualified.Write([]string{res.result.ip, strconv.Itoa(res.result.port), strconv.FormatBool(*enableTLS), res.result.dataCenter, res.result.region, res.result.domainAbbr, res.result.city, res.result.latency})
 
 		}
 	}
 
 	writer.Flush()
-	writer2.Flush()
+	writerUnqualified.Flush()
 	// 清除输出内容
-	//fmt.Print("\033[2J")
+	// fmt.Print("\033[2J")
 	fmt.Printf("\n高速ip写入 %s，耗时 %d秒\n", *outFile, time.Since(startTime)/time.Second)
 	fmt.Printf("低速ip写入 lowspeedList.csv，耗时 %d秒\n", time.Since(startTime)/time.Second)
 }
@@ -586,7 +617,9 @@ func getDownloadSpeed(ip string) float64 {
 		Timeout:   timeout,
 		KeepAlive: 0,
 	}
-	conn, err := dialer.Dial("tcp", net.JoinHostPort(ip, strconv.Itoa(*defaultPort)))
+	//弃用Dial，使用新的DialContext函数，这里context.Background()提供了一个空的上下文
+	conn, err := dialer.DialContext(context.Background(), "tcp", net.JoinHostPort(ip, strconv.Itoa(*defaultPort)))
+
 	if err != nil {
 		return 0
 	}
@@ -597,13 +630,15 @@ func getDownloadSpeed(ip string) float64 {
 	// 创建HTTP客户端
 	client := http.Client{
 		Transport: &http.Transport{
-			Dial: func(network, addr string) (net.Conn, error) {
+			// 使用新的DialContext函数
+			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 				return conn, nil
 			},
 		},
-		//设置单个IP测速最长时间为5秒
+		// 外网访问延迟较大，设置单个IP延迟最长时间为5秒
 		Timeout: 5 * time.Second,
 	}
+
 	// 发送请求
 	req.Close = true
 	resp, err := client.Do(req)
@@ -617,13 +652,13 @@ func getDownloadSpeed(ip string) float64 {
 	written, _ := io.Copy(io.Discard, resp.Body)
 	duration := time.Since(startTime)
 
-	speed_orignal := float64(written) / duration.Seconds() / (1024 * 1024) //真实测速数据，如开多线程会有失真。单位MB/s
-	//speed_KB := float64(written) / duration.Seconds() / 1024  //单位KB/s
+	speedOrignal := float64(written) / duration.Seconds() / (1024 * 1024) // 真实测速数据，如开多线程会有失真。单位MB/s
+	// speed_KB := float64(written) / duration.Seconds() / 1024  //单位KB/s
 
 	if *multipleNum > 1 && *speedTest >= 5 {
-		//多线程测速会有速度损失，加以补偿
+		// 多线程测速会有速度损失，加以补偿
 		speed := float64(written) / duration.Seconds() / (1024 * 1024) * (*multipleNum)
-		fmt.Printf("IP %s 端口 %s 下载速度 %.1f MB/s, 补偿系数 %.0f, 原速度 %.1f MB/s\n", ip, strconv.Itoa(*defaultPort), speed, *multipleNum, speed_orignal)
+		fmt.Printf("IP %s 端口 %s 下载速度 %.1f MB/s, 补偿系数 %.0f, 原速度 %.1f MB/s\n", ip, strconv.Itoa(*defaultPort), speed, *multipleNum, speedOrignal)
 		return speed
 	} else {
 		speed := float64(written) / duration.Seconds() / (1024 * 1024)
@@ -631,5 +666,4 @@ func getDownloadSpeed(ip string) float64 {
 		fmt.Printf("IP %s 端口 %s 下载速度 %.1f MB/s\n", ip, strconv.Itoa(*defaultPort), speed)
 		return speed
 	}
-
 }

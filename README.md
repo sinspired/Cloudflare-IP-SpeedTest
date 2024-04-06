@@ -1,13 +1,15 @@
 # 简介
 Cloudflare IP 测速器是一个使用 Golang 编写的小工具，用于测试一些 Cloudflare 的 IP 地址的延迟和下载速度，并将结果输出到 CSV 文件中。
 
-### 更新内容
+### 修改内容：
 
-**1. 添加网络环境检测**。自动检测系统代理情况和网络情况，防止检测失真。
+**1. 添加网络环境检测**，自动检测系统代理情况和网络情况，防止检测失真。
 
-**2. 优化界面输出**。调整了运行界面的测速输出，更加直观；对输出的csv内容也做了调整，增加了 `域名后缀`  [`注`](# "顶级域名：US、HK、SG、KR等")。
+**2. 优化界面输出**，调整了运行界面的测速输出，更加直观；对输出的csv内容也做了调整，增加了 `域名后缀`  [`注`](# "顶级域名：US、HK、SG、KR等")。
 
-**3. 优化位置数据下载逻辑**。首次运行需下载 `location`，自动添加系统代理下载。
+**3. 优化位置数据下载逻辑**，首次运行需下载 `location`，自动添加系统代理下载。
+
+**4. 增加对zip格式ip文件支持**，自动判断输入文件格式，有限处理ip.txt，自动解压zip格式文件，合并ip数据并处理。
 
 # 安装
 首先安装 Golang 和 Git，然后在终端中运行以下命令：
@@ -20,18 +22,22 @@ go build -o ipspeedtest main.go
 这将编译可执行文件 ipspeedtest。
 
 # 参数说明
-ipspeedtest 可以接受以下参数：
+**ipspeedtest** 可以接受以下参数：
 
-- file: IP地址文件名称 (default "ip.txt")
-- max: 并发请求最大协程数 (default 100)
-- outfile: 输出文件名称 (default "ip.csv")
-- port:	端口 (default 443)
-- speedtest: 下载测速协程数量,设为0禁用测速 (default 5)
-- tls: 是否启用TLS (default true)
-- url: 测速文件地址 (default "speed.cloudflare.com/__down?bytes=500000000")
-- speedlimit: 最低下载速度(MB/s) (default 2)
-- mulnum：测速补偿系数 (default 1)
-- tcplimit：TCP最大延迟(ms) (default 1000)
+* -file: IP地址文件名称(*.txt) (default "ip.txt")
+* -filezip: IP文件压缩包名称(*.zip) (default "txt.zip")
+* -max: 并发请求最大线程数 (default 100)
+* -mulnum: 多线程测速造成测速不准，可进行倍数补偿 (default 1)
+* -outfile: 输出结果文件名称 (default "ip.csv")
+* -port: 端口 (default 443)
+* -speedlimit: 最低下载速度(MB/s) (default 2)
+* -speedtest: 下载测速线程数量,设为0禁用测速 (default 5)
+* -tcplimit: TCP最大延迟(ms) (default 1000)
+* -tls: 是否启用TLS (default true)
+* -url: 测速文件地址 (default "speed.cloudflare.com/__down?bytes=500000000")
+
+命令行键入 `-h` `help` 获取帮助 `./speedtest.exe -h`
+
 # 运行
 在终端中运行以下命令来启动程序：
 
