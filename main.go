@@ -269,11 +269,19 @@ func main() {
 	// 判断输入ip文件逻辑
 	if *File == "ip.txt" {
 		if *FileZip == "txt.zip" {
-			if _, err := os.Stat("ip.txt"); os.IsExist(err) {
-			} else if _, err := os.Stat("txt.zip"); os.IsNotExist(err) {
-				fmt.Println("未发现 ip.txt 或 txt.zip 文件")
-				return
+			if _, err := os.Stat("ip.txt"); os.IsNotExist(err) {
+				if _, err := os.Stat("txt.zip"); os.IsNotExist(err) {
+					fmt.Println("未发现 ip.txt 或 txt.zip 文件")
+					return
+				}
+				// 调用unZip2txt.go文件内的函数处理ZIP文件
+				err := task.UnZip2txtFile(*FileZip, "ipUnziped.txt")
+				if err != nil {
+					panic(err)
+				}
+				*File = "ipUnziped.txt"
 			}
+		} else {
 			// 调用unZip2txt.go文件内的函数处理ZIP文件
 			err := task.UnZip2txtFile(*FileZip, "ipUnziped.txt")
 			if err != nil {
@@ -281,12 +289,6 @@ func main() {
 			}
 			*File = "ipUnziped.txt"
 		}
-		// 调用unZip2txt.go文件内的函数处理ZIP文件
-		err := task.UnZip2txtFile(*FileZip, "ipUnziped.txt")
-		if err != nil {
-			panic(err)
-		}
-		*File = "ipUnziped.txt"
 	}
 
 	// 根据指定IP文件路径读取ip列表
@@ -340,9 +342,8 @@ func main() {
 			start := time.Now()
 			// conn, err := dialer.Dial("tcp", net.JoinHostPort(ip, strconv.Itoa(*defaultPort))),已淘汰的Dial
 
-			//使用新的DialContext函数,这里context.Background()提供了一个空的上下文
+			// 使用新的DialContext函数,这里context.Background()提供了一个空的上下文
 			conn, err := dialer.DialContext(context.Background(), "tcp", net.JoinHostPort(ip, strconv.Itoa(*defaultPort)))
-
 			if err != nil {
 				return
 			}
@@ -617,9 +618,8 @@ func getDownloadSpeed(ip string) float64 {
 		Timeout:   timeout,
 		KeepAlive: 0,
 	}
-	//弃用Dial，使用新的DialContext函数，这里context.Background()提供了一个空的上下文
+	// 弃用Dial，使用新的DialContext函数，这里context.Background()提供了一个空的上下文
 	conn, err := dialer.DialContext(context.Background(), "tcp", net.JoinHostPort(ip, strconv.Itoa(*defaultPort)))
-
 	if err != nil {
 		return 0
 	}
