@@ -1,15 +1,13 @@
 # 简介
+[![Go Version](https://img.shields.io/github/go-mod/go-version/sinspired/Cloudflare-IP-SpeedTest?logo=go&label=Go)](https://github.com/sinspired/Cloudflare-IP-SpeedTest)
+[![Release Version](https://img.shields.io/github/v/release/sinspired/Cloudflare-IP-SpeedTest?display_name=tag&logo=github&label=Release)](https://github.com/sinspired/Cloudflare-IP-SpeedTest/releases/latest)
+[![GitHub repo size](https://img.shields.io/github/repo-size/sinspired/Cloudflare-IP-SpeedTest?logo=github)
+](https://github.com/sinspired/Cloudflare-IP-SpeedTest)
+[![GitHub last commit](https://img.shields.io/github/last-commit/sinspired/Cloudflare-IP-SpeedTest?logo=github&label=最后提交：)
+](ttps://github.com/sinspired/Cloudflare-IP-SpeedTest)
+
 Cloudflare IP 测速器是一个使用 Golang 编写的小工具，用于测试一些 Cloudflare 的 IP 地址的延迟和下载速度，并将结果输出到 CSV 文件中。
 
-### 修改内容：
-
-**1. 添加网络环境检测**，自动检测系统代理情况和网络情况，防止检测失真。
-
-**2. 优化界面输出**，调整了运行界面的测速输出，更加直观；对输出的csv内容也做了调整，增加了 `域名后缀`  [`注`](# "顶级域名：US、HK、SG、KR等")。
-
-**3. 优化位置数据下载逻辑**，首次运行需下载 `location`，自动添加系统代理下载。
-
-**4. 增加对zip格式ip文件支持**，自动判断输入文件格式，有限处理ip.txt，自动解压zip格式文件，合并ip数据并处理。
 
 # 安装
 首先安装 Golang 和 Git，然后在终端中运行以下命令：
@@ -51,6 +49,9 @@ go build -o ipspeedtest main.go
 
 程序还会将所有结果写入一个 CSV 文件中。
 
+# 最新发行版下载
+
+[![Release Detail](https://img.shields.io/github/v/release/sinspired/Cloudflare-IP-SpeedTest?sort=date&display_name=release&logo=github&label=Release)](https://github.com/sinspired/Cloudflare-IP-SpeedTest/releases/latest)
 
 
 # 许可证
