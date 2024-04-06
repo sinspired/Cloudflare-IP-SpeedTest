@@ -3,8 +3,7 @@
 [![Release Version](https://img.shields.io/github/v/release/sinspired/Cloudflare-IP-SpeedTest?display_name=tag&logo=github&label=Release)](https://github.com/sinspired/Cloudflare-IP-SpeedTest/releases/latest)
 [![GitHub repo size](https://img.shields.io/github/repo-size/sinspired/Cloudflare-IP-SpeedTest?logo=github)
 ](https://github.com/sinspired/Cloudflare-IP-SpeedTest)
-[![GitHub last commit](https://img.shields.io/github/last-commit/sinspired/Cloudflare-IP-SpeedTest?logo=github&label=最后提交：)
-](ttps://github.com/sinspired/Cloudflare-IP-SpeedTest)
+[![GitHub last commit](https://img.shields.io/github/last-commit/sinspired/Cloudflare-IP-SpeedTest?logo=github&label=最后提交：)](ttps://github.com/sinspired/Cloudflare-IP-SpeedTest)
 
 Cloudflare IP 测速器是一个使用 Golang 编写的小工具，用于测试一些 Cloudflare 的 IP 地址的延迟和下载速度，并将结果输出到 CSV 文件中。
 
