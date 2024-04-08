@@ -11,7 +11,7 @@ Cloudflare IP 测速器是一个使用 Golang 编写的小工具，用于测试�
 # 安装
 首先安装 Golang 和 Git，然后在终端中运行以下命令：
 
-```powershell
+```bash
 git clone https://github.com/sinspired/Cloudflare-IP-SpeedTest.git
 cd Cloudflare-IP-SpeedTest
 go build -o ipspeedtest main.go
@@ -21,11 +21,10 @@ go build -o ipspeedtest main.go
 # 参数说明
 **ipspeedtest** 可以接受以下参数：
 
-* -file: IP地址文件名称(*.txt) (default "ip.txt")
-* -filezip: IP文件压缩包名称(*.zip) (default "txt.zip")
+* -file: IP地址文件名称(*.txt或*.zip) (default "ip.txt")
 * -max: 并发请求最大线程数 (default 100)
 * -mulnum: 多线程测速造成测速不准，可进行倍数补偿 (default 1)
-* -outfile: 输出结果文件名称 (default "ip.csv")
+* -outfile: 输出文件名称(自动设置) (default "result.csv")
 * -port: 端口 (default 443)
 * -speedlimit: 最低下载速度(MB/s) (default 2)
 * -speedtest: 下载测速线程数量,设为0禁用测速 (default 5)
@@ -39,7 +38,7 @@ go build -o ipspeedtest main.go
 在终端中运行以下命令来启动程序：
 
 ```powershell
-./ipspeedtest -file="ip.txt" -outfile="ip.csv" -port=443 -max=100 -speedtest=1  -speedlimit=5 -tls=true -mulnum=1 -tcplimit=1000 -url="speed.cloudflare.com/__down?bytes=500000000"
+./ipspeedtest -port=443 -tls=true -speedtest=1 -speedlimit=5 -mulnum=1 -url="speed.cloudflare.com/__down?bytes=500000000" -max=100 -tcplimit=1000 -file="ip.txt" -outfile="result.csv"
 ```
 请替换参数值以符合您的实际需求。
 # 输出说明

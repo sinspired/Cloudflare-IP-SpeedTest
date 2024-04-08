@@ -31,6 +31,8 @@ go.work
 
 # 编辑器文件夹
 .idea/
+.vscode/
+*/.vscode/
 */.idea/
 build/
 bin/

@@ -23,6 +23,8 @@ import (
 
 	"github.com/mattn/go-ieproxy"
 	"golang.org/x/sys/windows/registry"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 
 	"ipspeedtest/task"
 )
@@ -38,17 +40,16 @@ const (
 )
 
 var (
-	File         = flag.String("file", "ip.txt", "IP地址文件名称(*.txt)")                            // IP地址文件名称
-	FileZip      = flag.String("filezip", "txt.zip", "IP文件压缩包名称(*.zip)")                       // IP地址文件名称
-	outFile      = flag.String("outfile", "ip.csv", "输出结果文件名称")                                // 输出结果文件名称
+	File         = flag.String("file", "ip.txt", "IP地址文件名称(*.txt或*.zip)")                      // IP地址文件名称
+	outFile      = flag.String("outfile", "result.csv", "输出文件名称(自动设置)")                        // 输出文件名称
 	defaultPort  = flag.Int("port", 443, "端口")                                                 // 端口
 	maxThreads   = flag.Int("max", 100, "并发请求最大线程数")                                           // 最大线程数
 	speedTest    = flag.Int("speedtest", 5, "下载测速线程数量,设为0禁用测速")                                // 下载测速线程数量
-	speedLimit   = flag.Int("speedlimit", 2, "最低下载速度(MB/s)")                                   // 最低下载速度
+	speedLimit   = flag.Int("speedlimit", 5, "最低下载速度(MB/s)")                                   // 最低下载速度
 	speedTestURL = flag.String("url", "speed.cloudflare.com/__down?bytes=500000000", "测速文件地址") // 测速文件地址
 	enableTLS    = flag.Bool("tls", true, "是否启用TLS")                                           // TLS是否启用
 	multipleNum  = flag.Float64("mulnum", 1, "多线程测速造成测速不准，可进行倍数补偿")                            // speedTest比较大时修改
-	tcpLimit     = flag.Int("tcplimit", 1000, "TCP最大延迟(ms)")                                   // 最低下载速度
+	tcpLimit     = flag.Int("tcplimit", 1000, "TCP最大延迟(ms)")                                   // TCP最大延迟(ms)
 )
 
 type result struct {
@@ -193,7 +194,7 @@ func main() {
 			return
 		}
 		// 检查下载的数据
-		fmt.Printf("下载的数据长度: %d\n", len(body))
+		// fmt.Printf("下载的数据长度: %d\n", len(body))
 		// fmt.Printf("下载的数据内容: %s\n", string(body))
 
 		err = json.Unmarshal(body, &locations)
@@ -213,6 +214,7 @@ func main() {
 			fmt.Printf("无法写入文件: %v\n", err)
 			return
 		}
+		fmt.Println("\033[32m成功下载并创建 location.json\033[0m")
 	} else {
 		fmt.Println("\033[0;90m本地 locations.json 已存在,无需重新下载\033[0m")
 		file, err := os.Open("locations.json")
@@ -261,34 +263,64 @@ func main() {
 	} else {
 		// 清除输出内容
 		fmt.Print("\033[2J\033[0;0H")
-		fmt.Println("\033[32m网络环境正常，读取ip列表进行tcp延迟检测……\033[0m")
+		fmt.Printf("\033[32m网络环境检测正常 \033[0m\n")
 	}
 
-	// 如果Google不可访问，Baidu可以访问，说明网络环境正常。开始读取ip列表进行tcp延迟检测
-
-	// 判断输入ip文件逻辑
-	if *File == "ip.txt" {
-		if *FileZip == "txt.zip" {
-			if _, err := os.Stat("ip.txt"); os.IsNotExist(err) {
-				if _, err := os.Stat("txt.zip"); os.IsNotExist(err) {
-					fmt.Println("未发现 ip.txt 或 txt.zip 文件")
+	// 网络环境正常，判断输入ip文件逻辑，选择ip文件格式读取ip列表进行tcp延迟检测
+	FileZipName := "ip"
+	if strings.HasSuffix(*File, ".txt") {
+		// 如果ip文件格式为txt
+		if *File == "ip.txt" {
+			// 如果ip文件参数为默认或未手动指定
+			if _, err := os.Stat(*File); os.IsNotExist(err) {
+				if _, err := os.Stat(FileZipName + ".zip"); os.IsNotExist(err) {
+					fmt.Println("未发现 默认ip列表 (支持txt和zip格式)")
 					return
 				}
+				// 生成解压文件文件名
+				UnZipedFile := "ip_" + "Default" + "_unZiped.txt"
 				// 调用unZip2txt.go文件内的函数处理ZIP文件
-				err := task.UnZip2txtFile(*FileZip, "ipUnziped.txt")
+				err := task.UnZip2txtFile(FileZipName+".zip", UnZipedFile)
 				if err != nil {
 					panic(err)
 				}
-				*File = "ipUnziped.txt"
+				*File = UnZipedFile
+				fmt.Printf("\033[90m发现程序默认压缩包 %s.zip,解压并合并ip文件: %s\033[0m\n", FileZipName, *File)
+			} else {
+				fmt.Printf("\033[90m发现程序默认ip列表文件 %s\033[0m\n", *File)
 			}
 		} else {
-			// 调用unZip2txt.go文件内的函数处理ZIP文件
-			err := task.UnZip2txtFile(*FileZip, "ipUnziped.txt")
-			if err != nil {
-				panic(err)
+			if _, err := os.Stat(*File); os.IsNotExist(err) {
+				fmt.Println("未发现ip列表文件")
+				return
 			}
-			*File = "ipUnziped.txt"
+			fmt.Printf("\033[90m发现指定ip列表文件 %s\033[0m\n", *File)
 		}
+	} else if strings.HasSuffix(*File, ".zip") {
+		// 如果ip文件格式为zip
+		if _, err := os.Stat(*File); os.IsNotExist(err) {
+			fmt.Println("未发现ip列表文件")
+			return
+		}
+		fmt.Printf("\033[90m发现用户指定ip列表压缩包 %s\033[0m", *File)
+
+		// 获取压缩包文件名
+		FileZipName = strings.Split(*File, ".")[0]
+		caser := cases.Title(language.English)  // 使用English作为默认语言标签
+		FileZipName = caser.String(FileZipName) // 字母小写
+
+		// 生成解压文件文件名
+		UnZipedFile := "ip_" + FileZipName + "_unZiped.txt"
+		// 调用unZip2txt.go文件内的函数处理ZIP文件
+		err := task.UnZip2txtFile(*File, UnZipedFile)
+		if err != nil {
+			panic(err)
+		}
+		*File = UnZipedFile
+		fmt.Printf("\033[90m,解压并合并ip文件: %s\033[0m\n", *File)
+	} else {
+		fmt.Println("\033[31m输入ip文件应为 txt 或 zip 格式，请重新输入\033[0m")
+		return
 	}
 
 	// 根据指定IP文件路径读取ip列表
@@ -369,7 +401,6 @@ func main() {
 				protocol = "http://"
 			}
 			requestURL := protocol + requestURL
-
 			req, _ := http.NewRequest("GET", requestURL, nil)
 
 			// 添加用户代理
@@ -409,11 +440,11 @@ func main() {
 				return
 			}
 
-			// if err != nil {
-			// 	// 处理错误，例如日志记录
-			// 	fmt.Printf("Error occurred: %v", err)
-			// 	return
-			// }
+			if err != nil {
+				// 处理错误，例如日志记录
+				// fmt.Printf("Error occurred: %v", err)
+				return
+			}
 
 			if strings.Contains(body.String(), "uag=Mozilla/5.0") {
 				if matches := regexp.MustCompile(`colo=([A-Z]+)`).FindStringSubmatch(body.String()); len(matches) > 1 {
@@ -496,7 +527,18 @@ func main() {
 		})
 	}
 
-	// 默认输出结果文件
+	// 重定义输出文件名
+	FileName := strings.Split(*File, ".")[0]
+	resultName := strings.Split(FileName, "_")[1] // 分离名字字段
+	caser := cases.Title(language.English)        // 使用English作为默认语言标签
+	resultName = caser.String(resultName)         // 首字母大写
+
+	if *outFile == "result.csv" {
+		*outFile = "result_" + resultName + ".csv"
+	}
+	outFileUnqualified := "result_" + resultName + "_Unqualified.csv"
+
+	// 未达标的测速ip输出到一个文件
 	file, err := os.Create(*outFile)
 	if err != nil {
 		fmt.Printf("无法创建文件: %v\n", err)
@@ -506,7 +548,7 @@ func main() {
 	file.WriteString("\xEF\xBB\xBF") // 标记为utf-8 bom编码,防止excel打开中文乱码
 
 	// 未达标的测速ip输出到一个文件
-	fileUnqualified, err := os.Create("lowspeedList.csv")
+	fileUnqualified, err := os.Create(outFileUnqualified)
 	if err != nil {
 		fmt.Printf("无法创建文件: %v\n", err)
 		return
@@ -516,6 +558,7 @@ func main() {
 
 	writer := csv.NewWriter(file)
 	writerUnqualified := csv.NewWriter(fileUnqualified)
+
 	if *speedTest > 0 {
 		writer.Write([]string{"IP地址", "端口", "TLS", "数据中心", "地区", "域名后缀", "城市", "网络延迟(ms)", "下载速度(MB/s)"})
 		writerUnqualified.Write([]string{"IP地址", "端口", "TLS", "数据中心", "地区", "域名后缀", "城市", "网络延迟(ms)", "下载速度(MB/s)"})
@@ -528,12 +571,13 @@ func main() {
 	for _, res := range results {
 		if *speedTest > 0 {
 			if res.downloadSpeed >= float64(*speedLimit) {
+				// 根据设定限速值，测速结果写入不同文件
 				writer.Write([]string{res.result.ip, strconv.Itoa(res.result.port), strconv.FormatBool(*enableTLS), res.result.dataCenter, res.result.region, res.result.domainAbbr, res.result.city, res.result.latency, fmt.Sprintf("%.1f", res.downloadSpeed)})
-				fmt.Printf("IP %s 下载速度 %.1f MB/s,高于 %d MB/s，已写入 %s!\n", res.result.ip, res.downloadSpeed, *speedLimit, *outFile)
+				fmt.Printf("IP %s 下载速度 %.1f MB/s,高于 %d MB/s，已写入 %s\n", res.result.ip, res.downloadSpeed, *speedLimit, *outFile)
 			} else {
 				writerUnqualified.Write([]string{res.result.ip, strconv.Itoa(res.result.port), strconv.FormatBool(*enableTLS), res.result.dataCenter, res.result.region, res.result.domainAbbr, res.result.city, res.result.latency, fmt.Sprintf("%.1f", res.downloadSpeed)})
 
-				fmt.Printf("IP %s 下载速度 %.1f MB/s,低于 %d MB/s，已写入 lowspeedList.csv\n", res.result.ip, res.downloadSpeed, *speedLimit)
+				// fmt.Printf("IP %s 下载速度 %.1f MB/s,低于 %d MB/s，已写入 %s\n", res.result.ip, res.downloadSpeed, *speedLimit, outFileUnqualified)
 			}
 		} else {
 			writer.Write([]string{res.result.ip, strconv.Itoa(res.result.port), strconv.FormatBool(*enableTLS), res.result.dataCenter, res.result.region, res.result.domainAbbr, res.result.city, res.result.latency})
@@ -547,7 +591,7 @@ func main() {
 	// 清除输出内容
 	// fmt.Print("\033[2J")
 	fmt.Printf("\n高速ip写入 %s，耗时 %d秒\n", *outFile, time.Since(startTime)/time.Second)
-	fmt.Printf("低速ip写入 lowspeedList.csv，耗时 %d秒\n", time.Since(startTime)/time.Second)
+	fmt.Printf("低速ip写入 %s，耗时 %d秒\n", outFileUnqualified, time.Since(startTime)/time.Second)
 }
 
 // 从文件中读取IP地址
