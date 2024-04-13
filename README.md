@@ -22,17 +22,17 @@ go build -o ipspeedtest main.go
 **ipspeedtest** 可以接受以下参数：
 
 * -file: IP地址文件名称(*.txt或*.zip) (default "ip.txt")
-* -max: 并发请求最大线程数 (default 100)
-* -mulnum: 多线程测速造成测速不准，可进行倍数补偿 (default 1)
+* -max: 并发请求最大协程数 (default 100)
+* -mulnum: 多协程测速造成测速不准，可进行倍数补偿 (default 1)
 * -outfile: 输出文件名称(自动设置) (default "result.csv")
 * -port: 端口 (default 443)
 * -speedlimit: 最低下载速度(MB/s) (default 2)
-* -speedtest: 下载测速线程数量,设为0禁用测速 (default 5)
+* -speedtest: 下载测速协程数量,设为0禁用测速 (default 5)
 * -tcplimit: TCP最大延迟(ms) (default 1000)
 * -tls: 是否启用TLS (default true)
 * -url: 测速文件地址 (default "speed.cloudflare.com/__down?bytes=500000000")
 
-命令行键入 `-h` `help` 获取帮助 `./speedtest.exe -h`
+命令行键入 `-h` `help` 获取帮助 `./ipSpeedTest.exe -h`
 
 # 运行
 在终端中运行以下命令来启动程序：
@@ -43,7 +43,7 @@ go build -o ipspeedtest main.go
 请替换参数值以符合您的实际需求。
 # 输出说明
 程序将输出每个成功测试的 IP 地址的信息，包括 IP 地址、端口、数据中心、地区、域名后缀、城市、网络延迟(ms)和下载速度(MB/s)（如果选择测速）。
-网址、文件路径参数需要加""，比如"ip.txt"
+网址、文件路径参数如包含空格需要加""。
 
 程序还会将所有结果写入一个 CSV 文件中。
 

@@ -29,26 +29,26 @@ import (
 	"ipspeedtest/task"
 )
 
-var (
-	requestURL       = "speed.cloudflare.com/cdn-cgi/trace"     // 请求trace URL
-	locationsJsonUrl = "https://speed.cloudflare.com/locations" // location.json下载 URL
-)
-
 const (
 	timeout     = 1 * time.Second // 超时时间
 	maxDuration = 2 * time.Second // 最大持续时间
 )
 
 var (
+	requestURL       = "speed.cloudflare.com/cdn-cgi/trace"     // 请求trace URL
+	locationsJsonUrl = "https://speed.cloudflare.com/locations" // location.json下载 URL
+)
+
+var (
 	File         = flag.String("file", "ip.txt", "IP地址文件名称(*.txt或*.zip)")                      // IP地址文件名称
 	outFile      = flag.String("outfile", "result.csv", "输出文件名称(自动设置)")                        // 输出文件名称
 	defaultPort  = flag.Int("port", 443, "端口")                                                 // 端口
-	maxThreads   = flag.Int("max", 100, "并发请求最大线程数")                                           // 最大线程数
-	speedTest    = flag.Int("speedtest", 5, "下载测速线程数量,设为0禁用测速")                                // 下载测速线程数量
+	maxThreads   = flag.Int("max", 100, "并发请求最大协程数")                                           // 最大协程数
+	speedTest    = flag.Int("speedtest", 5, "下载测速协程数量,设为0禁用测速")                                // 下载测速协程数量
 	speedLimit   = flag.Int("speedlimit", 5, "最低下载速度(MB/s)")                                   // 最低下载速度
 	speedTestURL = flag.String("url", "speed.cloudflare.com/__down?bytes=500000000", "测速文件地址") // 测速文件地址
 	enableTLS    = flag.Bool("tls", true, "是否启用TLS")                                           // TLS是否启用
-	multipleNum  = flag.Float64("mulnum", 1, "多线程测速造成测速不准，可进行倍数补偿")                            // speedTest比较大时修改
+	multipleNum  = flag.Float64("mulnum", 1, "多协程测速造成测速不准，可进行倍数补偿")                            // speedTest比较大时修改
 	tcpLimit     = flag.Int("tcplimit", 1000, "TCP最大延迟(ms)")                                   // TCP最大延迟(ms)
 )
 
@@ -89,77 +89,6 @@ func increaseMaxOpenFiles() {
 	}
 }
 
-// downloadWithIEProxy 尝试使用IE代理设置下载文件
-func downloadWithIEProxy(downloadURL string) ([]byte, error) {
-	proxyFunc := ieproxy.GetProxyFunc()
-	client := &http.Client{
-		Timeout:   2 * time.Second,
-		Transport: &http.Transport{Proxy: proxyFunc},
-	}
-
-	resp, err := client.Get(downloadURL)
-	if err != nil {
-		return nil, fmt.Errorf("下载时出错: %v", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body) // 尝试读取响应体以获取更多错误信息
-		return nil, fmt.Errorf("非预期的HTTP状态码: %v, 响应体: %s", resp.Status, string(body))
-	}
-
-	return io.ReadAll(resp.Body)
-}
-
-// 定义外网域名google.com检测函数
-func checkProxyEnabled() bool {
-	k, err := registry.OpenKey(registry.CURRENT_USER, `Software\Microsoft\Windows\CurrentVersion\Internet Settings`, registry.QUERY_VALUE)
-	if err != nil {
-		fmt.Println("无法打开注册表键:", err)
-		return false
-	}
-	defer k.Close()
-
-	proxyEnable, _, err := k.GetIntegerValue("ProxyEnable")
-	if err != nil {
-		fmt.Println("无法读取ProxyEnable值:", err)
-		return false
-	}
-
-	return proxyEnable == 1 // proxyEnable键值若为1，说明开启了代理服务器，返回true
-}
-
-// checkNormalUrl 尝试连接指定的URL，检查网站是否可访问
-func checkNormalUrl(url string) bool {
-	resp, err := http.Get(url)
-	if err != nil {
-		// fmt.Printf("访问 %s 时未知错误:[ %v ]\n", url, err)
-		return false
-	}
-	defer resp.Body.Close()
-	// fmt.Println("检测可以ping通:" + url)
-	return true
-}
-
-// 根据域名检测连通性，自动检测代理服务器.
-func checkProxyUrl(urlStr string) bool {
-	proxyFunc := ieproxy.GetProxyFunc()
-	client := &http.Client{
-		Timeout:   2 * time.Second,
-		Transport: &http.Transport{Proxy: proxyFunc},
-	}
-
-	resp, err := client.Get(urlStr)
-	if err != nil {
-		// fmt.Printf("连通性错误 %s: %v\n", urlStr, err)
-		return false
-	}
-	defer resp.Body.Close()
-
-	// fmt.Println("成功连接: " + urlStr)
-	return true
-}
-
 func main() {
 	flag.Parse()
 
@@ -193,9 +122,6 @@ func main() {
 			fmt.Printf("下载失败: %v\n", err)
 			return
 		}
-		// 检查下载的数据
-		// fmt.Printf("下载的数据长度: %d\n", len(body))
-		// fmt.Printf("下载的数据内容: %s\n", string(body))
 
 		err = json.Unmarshal(body, &locations)
 		if err != nil {
@@ -242,85 +168,24 @@ func main() {
 		locationMap[loc.Iata] = loc
 	}
 
-	// 检查系统代理是否启用
-	if checkProxyEnabled() {
-		fmt.Println("\033[2J\033[0;0H\033[31m检测到系统代理已启用，请关闭VPN后重试。\033[0m")
-		return
-	} else {
-		fmt.Println("\033[90m系统代理未启用，检测tun模式代理……\033[0m")
-	}
+	// 网络环境检测，如网络不正常自动退出
+	autoNetworkDetection()
 
-	// 检查Google.com是否可访问
-	if checkProxyUrl("https://www.google.com") {
-		fmt.Println("\033[31m已开启tun模式代理，可以访问外网，请关闭VPN后重试。\033[0m")
-	} else {
-		fmt.Println("\033[90m未开启vpn，检测墙内网络是否正常……\033[0m")
-	}
-	// 检测Baidu是否可访问
-	if !checkNormalUrl("https://www.baidu.com") {
-		fmt.Println("\033[2J\033[0;0H\033[31m无互联网访问，请检查网络连接。\033[0m")
-		return
-	} else {
-		// 清除输出内容
-		fmt.Print("\033[2J\033[0;0H")
-		fmt.Printf("\033[32m网络环境检测正常 \033[0m\n")
-	}
+	// 调用 autoSetFileName 函数，自动设置输入文件格式
+	autoSetFileName("ip.txt", "ip.zip")
 
-	// 网络环境正常，判断输入ip文件逻辑，选择ip文件格式读取ip列表进行tcp延迟检测
-	FileZipName := "ip"
-	if strings.HasSuffix(*File, ".txt") {
-		// 如果ip文件格式为txt
-		if *File == "ip.txt" {
-			// 如果ip文件参数为默认或未手动指定
-			if _, err := os.Stat(*File); os.IsNotExist(err) {
-				if _, err := os.Stat(FileZipName + ".zip"); os.IsNotExist(err) {
-					fmt.Println("未发现 默认ip列表 (支持txt和zip格式)")
-					return
-				}
-				// 生成解压文件文件名
-				UnZipedFile := "ip_" + "Default" + "_unZiped.txt"
-				// 调用unZip2txt.go文件内的函数处理ZIP文件
-				err := task.UnZip2txtFile(FileZipName+".zip", UnZipedFile)
-				if err != nil {
-					panic(err)
-				}
-				*File = UnZipedFile
-				fmt.Printf("\033[90m发现程序默认压缩包 %s.zip,解压并合并ip文件: %s\033[0m\n", FileZipName, *File)
-			} else {
-				fmt.Printf("\033[90m发现程序默认ip列表文件 %s\033[0m\n", *File)
-			}
-		} else {
-			if _, err := os.Stat(*File); os.IsNotExist(err) {
-				fmt.Println("未发现ip列表文件")
-				return
-			}
-			fmt.Printf("\033[90m发现指定ip列表文件 %s\033[0m\n", *File)
+	// 重定义输出文件名
+	outFileUnqualified := "result_Unqualified.csv"
+	if strings.Contains(*File, "_") {
+		FileName := strings.Split(*File, ".")[0]      // 去掉后缀名
+		resultName := strings.Split(FileName, "_")[1] // 分离名字字段
+		caser := cases.Title(language.English)        // 使用English作为默认语言标签
+		resultName = caser.String(resultName)         // 首字母大写
+
+		if *outFile == "result.csv" {
+			*outFile = "result_" + resultName + ".csv"
 		}
-	} else if strings.HasSuffix(*File, ".zip") {
-		// 如果ip文件格式为zip
-		if _, err := os.Stat(*File); os.IsNotExist(err) {
-			fmt.Println("未发现ip列表文件")
-			return
-		}
-		fmt.Printf("\033[90m发现用户指定ip列表压缩包 %s\033[0m", *File)
-
-		// 获取压缩包文件名
-		FileZipName = strings.Split(*File, ".")[0]
-		caser := cases.Title(language.English)  // 使用English作为默认语言标签
-		FileZipName = caser.String(FileZipName) // 字母小写
-
-		// 生成解压文件文件名
-		UnZipedFile := "ip_" + FileZipName + "_unZiped.txt"
-		// 调用unZip2txt.go文件内的函数处理ZIP文件
-		err := task.UnZip2txtFile(*File, UnZipedFile)
-		if err != nil {
-			panic(err)
-		}
-		*File = UnZipedFile
-		fmt.Printf("\033[90m,解压并合并ip文件: %s\033[0m\n", *File)
-	} else {
-		fmt.Println("\033[31m输入ip文件应为 txt 或 zip 格式，请重新输入\033[0m")
-		return
+		outFileUnqualified = "result_" + resultName + "_Unqualified.csv"
 	}
 
 	// 根据指定IP文件路径读取ip列表
@@ -337,20 +202,15 @@ func main() {
 
 	thread := make(chan struct{}, *maxThreads)
 
-	var countAll int   // TCP延迟检测计数器
-	var countAlive int // 有效IP计数器
-	total := len(ips)
+	total := len(ips)      // ip数据总数
+	var countAll int       // TCP延迟检测计数器
+	var countAlive int     // 有效IP计数器
+	var percentage float64 // 检测进度百分比
 
 	for _, ip := range ips {
-
+		// 计数器
 		countAll++
-		percentage := float64(countAll) / float64(total) * 100
-		fmt.Printf("已检测: %d 总数: %d 进度: %.2f%%  存活ip:  \033[1;32m\033[5m%d\033[0m\r", countAll, total, percentage, countAlive)
-
-		if countAll == total {
-			fmt.Printf("\n")
-			// fmt.Printf("\n已完成: %d 发现有效ip: %d ---任务进度：[ %.0f%% ]\n", countAll, countAlive,percentage)
-		}
+		percentage = float64(countAll) / float64(total) * 100
 
 		thread <- struct{}{}
 		go func(ip string) {
@@ -358,13 +218,8 @@ func main() {
 				<-thread
 				wg.Done()
 
-				/* //计数器和输出代码在这个位置会导致输出错误
-				countAll++
-				percentage := float64(countAll) / float64(total) * 100
-				fmt.Printf("已完成: %d 总数: %d 已完成: %.2f%%\r", countAll, total, percentage)
-				if countAll == total {
-					fmt.Printf("已完成: %d 发现有效ip: %d 个\n", countAll, countAlive)
-				} */
+				// 并发检测进度显示
+				fmt.Printf(":已检测: %d 总数: %d 进度: %.2f%%  存活ip:  \033[1;32m\033[5m%d\033[0m\r", countAll, total, percentage, countAlive)
 			}()
 
 			dialer := &net.Dialer{
@@ -372,9 +227,9 @@ func main() {
 				KeepAlive: 0,
 			}
 			start := time.Now()
-			// conn, err := dialer.Dial("tcp", net.JoinHostPort(ip, strconv.Itoa(*defaultPort))),已淘汰的Dial
 
 			// 使用新的DialContext函数,这里context.Background()提供了一个空的上下文
+			// conn, err := dialer.Dial("tcp", net.JoinHostPort(ip, strconv.Itoa(*defaultPort))),已淘汰的Dial
 			conn, err := dialer.DialContext(context.Background(), "tcp", net.JoinHostPort(ip, strconv.Itoa(*defaultPort)))
 			if err != nil {
 				return
@@ -427,7 +282,7 @@ func main() {
 				done <- true
 				if copyErr != nil {
 					// 在这里处理goroutine中的错误
-					fmt.Printf("读取响应体错误: %v", copyErr)
+					// fmt.Printf("读取响应体错误: %v", copyErr)
 					return
 				}
 			}()
@@ -440,27 +295,20 @@ func main() {
 				return
 			}
 
-			if err != nil {
-				// 处理错误，例如日志记录
-				// fmt.Printf("Error occurred: %v", err)
-				return
-			}
-
 			if strings.Contains(body.String(), "uag=Mozilla/5.0") {
 				if matches := regexp.MustCompile(`colo=([A-Z]+)`).FindStringSubmatch(body.String()); len(matches) > 1 {
 					dataCenter := matches[1]
 					loc, ok := locationMap[dataCenter]
 					if float64(tcpDuration.Milliseconds()) <= float64(*tcpLimit) {
+						countAlive++ // 记录存活IP数量
 						if ok {
-							fmt.Printf("发现有效IP %s 位置: %s.%s 延迟 %d 毫秒\n", ip, loc.City, loc.Cca2, tcpDuration.Milliseconds())
+							fmt.Printf("-发现有效IP %s 位置: %s.%s 延迟 %d 毫秒\n", ip, loc.City, loc.Cca2, tcpDuration.Milliseconds())
 							resultChan <- result{ip, *defaultPort, dataCenter, loc.Region, loc.Cca2, loc.City, fmt.Sprintf("%d", tcpDuration.Milliseconds()), tcpDuration} // 删掉excel中的 ms单位。tcpDuration变量
 						} else {
-							fmt.Printf("发现有效IP %s 位置信息未知 延迟 %d 毫秒\n", ip, tcpDuration.Milliseconds())
+							fmt.Printf("-发现有效IP %s 位置信息未知 延迟 %d 毫秒\n", ip, tcpDuration.Milliseconds())
 							resultChan <- result{ip, *defaultPort, dataCenter, "", "", "", fmt.Sprintf("%d", tcpDuration.Milliseconds()), tcpDuration} // 删掉excel中的 ms单位。tcpDuration变量
 						}
-						countAlive++
 					}
-
 				}
 			}
 		}(ip)
@@ -468,6 +316,12 @@ func main() {
 
 	wg.Wait()
 	close(resultChan)
+
+	// 并发检测执行完毕后输出信息
+	if countAll == total {
+		fmt.Printf(":已检测: %d 总数: %d 进度: \033[32m%.2f%%\033[0m  存活ip:  \033[1;32m\033[5m%d\033[0m\r", countAll, total, percentage, countAlive)
+		fmt.Printf("\nTCP延迟检测完成！\n")
+	}
 
 	if len(resultChan) == 0 {
 		// 清除输出内容
@@ -491,21 +345,21 @@ func main() {
 				defer func() {
 					<-thread
 					wg2.Done()
+					// 输出下载测速进度
+					percentage := float64(countSt) / float64(total) * 100
+					if percentage == 100 {
+						fmt.Printf("下载测速进度已完成 \033[1;32m%.2f%%\033[0m\r", percentage)
+					}
 				}()
-				for res := range resultChan {
 
+				for res := range resultChan {
 					countSt++ // 记录下载测速进度
 					percentage := float64(countSt) / float64(total) * 100
-					// fmt.Printf("已完成: %.2f%%\r", percentage)
 
 					downloadSpeed := getDownloadSpeed(res.ip)
 					results = append(results, speedtestresult{result: res, downloadSpeed: downloadSpeed})
-					if percentage == 100 {
-						// 清除输出内容
-						// fmt.Print("\033[2J")
-						fmt.Printf("下载测速进度 \033[1;32m%.2f%%\033[0m\n", percentage)
-					}
 
+					fmt.Printf("协程 \033[33m%d\033[0m 下载测速进度 \033[1;32m%.2f%%\033[0m\r", i, percentage)
 				}
 			}()
 		}
@@ -527,18 +381,7 @@ func main() {
 		})
 	}
 
-	// 重定义输出文件名
-	FileName := strings.Split(*File, ".")[0]
-	resultName := strings.Split(FileName, "_")[1] // 分离名字字段
-	caser := cases.Title(language.English)        // 使用English作为默认语言标签
-	resultName = caser.String(resultName)         // 首字母大写
-
-	if *outFile == "result.csv" {
-		*outFile = "result_" + resultName + ".csv"
-	}
-	outFileUnqualified := "result_" + resultName + "_Unqualified.csv"
-
-	// 未达标的测速ip输出到一个文件
+	// 达标的测速ip输出到一个文件
 	file, err := os.Create(*outFile)
 	if err != nil {
 		fmt.Printf("无法创建文件: %v\n", err)
@@ -566,8 +409,8 @@ func main() {
 		writer.Write([]string{"IP地址", "端口", "TLS", "数据中心", "地区", "域名后缀", "城市", "网络延迟(ms)"})
 		writerUnqualified.Write([]string{"IP地址", "端口", "TLS", "数据中心", "地区", "域名后缀", "城市", "网络延迟(ms)"})
 	}
-
-	fmt.Printf("\n优选测速结果：\n")
+	// fmt.Printf("\n")
+	fmt.Printf("\n\n优选ip测速结果：\n")
 	for _, res := range results {
 		if *speedTest > 0 {
 			if res.downloadSpeed >= float64(*speedLimit) {
@@ -590,8 +433,170 @@ func main() {
 	writerUnqualified.Flush()
 	// 清除输出内容
 	// fmt.Print("\033[2J")
-	fmt.Printf("\n高速ip写入 %s，耗时 %d秒\n", *outFile, time.Since(startTime)/time.Second)
-	fmt.Printf("低速ip写入 %s，耗时 %d秒\n", outFileUnqualified, time.Since(startTime)/time.Second)
+	fmt.Printf("\n> 优质ip写入 \033[90m%s\033[0m 耗时 %d秒\n", *outFile, time.Since(startTime)/time.Second)
+	fmt.Printf("> 低速ip写入 \033[90m%s\033[0m 耗时 %d秒\n", outFileUnqualified, time.Since(startTime)/time.Second)
+}
+
+// autoNetworkDetection 自动检测网络环境，返回一个bool值
+func autoNetworkDetection() bool {
+	// 检查系统代理是否启用
+	if checkProxyEnabled() {
+		fmt.Println("\033[2J\033[0;0H\033[31m检测到系统代理已启用，请关闭VPN后重试。\033[0m")
+		return false
+	} else {
+		fmt.Println("\033[90m系统代理未启用，检测tun模式代理……\033[0m")
+
+		// 检查Google.com是否可访问
+		if checkProxyUrl("https://www.google.com") {
+			fmt.Println("\033[31m已开启tun模式代理，可以访问外网，请关闭VPN后重试。\033[0m")
+			return false
+		} else {
+			fmt.Println("\033[90m未开启vpn，检测墙内网络是否正常……\033[0m")
+		}
+	}
+
+	// 检测Baidu是否可访问
+	if !checkNormalUrl("https://www.baidu.com") {
+		fmt.Println("\033[2J\033[0;0H\033[31m无互联网访问，请检查网络连接。\033[0m")
+		return false
+	} else {
+		// 清除输出内容
+		fmt.Print("\033[2J\033[0;0H")
+		fmt.Printf("\033[32m网络环境检测正常 \033[0m\n")
+	}
+	return true
+}
+
+// checkProxyEnabled 检测是否开启系统代理服务器
+func checkProxyEnabled() bool {
+	k, err := registry.OpenKey(registry.CURRENT_USER, `Software\Microsoft\Windows\CurrentVersion\Internet Settings`, registry.QUERY_VALUE)
+	if err != nil {
+		fmt.Println("无法打开注册表键:", err)
+		return false
+	}
+	defer k.Close()
+
+	proxyEnable, _, err := k.GetIntegerValue("ProxyEnable")
+	if err != nil {
+		fmt.Println("无法读取ProxyEnable值:", err)
+		return false
+	}
+
+	return proxyEnable == 1 // proxyEnable键值若为1，说明开启了代理服务器，返回true
+}
+
+// checkNormalUrl 尝试连接指定的URL，检查网络是否可访问
+func checkNormalUrl(url string) bool {
+	resp, err := http.Get(url)
+	if err != nil {
+		// fmt.Printf("访问 %s 时未知错误:[ %v ]\n", url, err)
+		return false
+	}
+	defer resp.Body.Close()
+	// fmt.Println("检测可以ping通:" + url)
+	return true
+}
+
+// checkProxyUrl 根据域名检测连通性，自动检测代理服务器.
+func checkProxyUrl(urlStr string) bool {
+	proxyFunc := ieproxy.GetProxyFunc()
+	client := &http.Client{
+		Timeout:   2 * time.Second,
+		Transport: &http.Transport{Proxy: proxyFunc},
+	}
+
+	resp, err := client.Get(urlStr)
+	if err != nil {
+		// fmt.Printf("连通性错误 %s: %v\n", urlStr, err)
+		return false
+	}
+	defer resp.Body.Close()
+
+	// fmt.Println("成功连接: " + urlStr)
+	return true
+}
+
+// downloadWithIEProxy 尝试使用IE代理设置下载文件
+func downloadWithIEProxy(downloadURL string) ([]byte, error) {
+	proxyFunc := ieproxy.GetProxyFunc()
+	client := &http.Client{
+		Timeout:   2 * time.Second,
+		Transport: &http.Transport{Proxy: proxyFunc},
+	}
+
+	resp, err := client.Get(downloadURL)
+	if err != nil {
+		return nil, fmt.Errorf("下载时出错: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body) // 尝试读取响应体以获取更多错误信息
+		return nil, fmt.Errorf("非预期的HTTP状态码: %v, 响应体: %s", resp.Status, string(body))
+	}
+
+	return io.ReadAll(resp.Body)
+}
+
+// autoSetFileName 自动检测输入文件格式并进行处理:
+// defaultTxtFile为默认输入的txt文件名称，"ip.txt”（为*File默认参数），
+// defaultZipFile为默认输入的zip文件名称，"ip.zip"（用户自定义）。
+func autoSetFileName(defaultTxtFile string, defaultZipFile string) {
+	ZipedFile := defaultZipFile
+	if strings.HasSuffix(*File, ".txt") {
+		// 如果ip文件格式为txt
+		if *File == defaultTxtFile {
+			// 如果ip文件参数为默认或未手动指定
+			if _, err := os.Stat(*File); os.IsNotExist(err) {
+				if _, err := os.Stat(ZipedFile); os.IsNotExist(err) {
+					fmt.Println("未发现 默认ip列表 (支持txt和zip格式)")
+					return
+				}
+				// 生成解压文件文件名
+				UnZipedFile := "ip_" + "Default" + "_unZiped.txt"
+				// 调用unZip2txt.go文件内的函数处理ZIP文件
+				err := task.UnZip2txtFile(ZipedFile, UnZipedFile)
+				if err != nil {
+					panic(err)
+				}
+				*File = UnZipedFile
+				fmt.Printf("\033[90m发现程序默认压缩包 %s,解压并合并ip文件: %s\033[0m\n", ZipedFile, *File)
+			} else {
+				fmt.Printf("\033[90m发现程序默认ip列表文件 %s\033[0m\n", *File)
+			}
+		} else {
+			if _, err := os.Stat(*File); os.IsNotExist(err) {
+				fmt.Println("未发现ip列表文件")
+				return
+			}
+			fmt.Printf("\033[90m发现指定ip列表文件 %s\033[0m\n", *File)
+		}
+	} else if strings.HasSuffix(*File, ".zip") {
+		// 如果ip文件格式为zip
+		if _, err := os.Stat(*File); os.IsNotExist(err) {
+			fmt.Println("未发现ip列表文件")
+			return
+		}
+		fmt.Printf("\033[90m发现用户指定ip列表压缩包 %s\033[0m", *File)
+
+		// 获取压缩包文件名
+		ZipedFileName := strings.Split(*File, ".")[0]
+		caser := cases.Title(language.English)      // 使用English作为默认语言标签
+		ZipedFileName = caser.String(ZipedFileName) // 字母小写
+
+		// 生成解压文件文件名
+		UnZipedFile := "ip_" + ZipedFileName + "_unZiped.txt"
+		// 调用unZip2txt.go文件内的函数处理ZIP文件
+		err := task.UnZip2txtFile(*File, UnZipedFile)
+		if err != nil {
+			panic(err)
+		}
+		*File = UnZipedFile
+		fmt.Printf("\033[90m,解压并合并ip文件: %s\033[0m\n", *File)
+	} else {
+		fmt.Println("\033[31m输入ip文件应为 txt 或 zip 格式，请重新输入\033[0m")
+		return
+	}
 }
 
 // 从文件中读取IP地址
@@ -687,7 +692,7 @@ func getDownloadSpeed(ip string) float64 {
 	req.Close = true
 	resp, err := client.Do(req)
 	if err != nil {
-		fmt.Printf("IP %s 端口 %s 测速无效\n", ip, strconv.Itoa(*defaultPort))
+		fmt.Printf("-IP %s 端口 %s \033[9m测速无效\033[0m\n", ip, strconv.Itoa(*defaultPort))
 		return 0
 	}
 	defer resp.Body.Close()
@@ -696,18 +701,18 @@ func getDownloadSpeed(ip string) float64 {
 	written, _ := io.Copy(io.Discard, resp.Body)
 	duration := time.Since(startTime)
 
-	speedOrignal := float64(written) / duration.Seconds() / (1024 * 1024) // 真实测速数据，如开多线程会有失真。单位MB/s
+	speedOrignal := float64(written) / duration.Seconds() / (1024 * 1024) // 真实测速数据，如开多协程会有失真。单位MB/s
 	// speed_KB := float64(written) / duration.Seconds() / 1024  //单位KB/s
 
-	if *multipleNum > 1 && *speedTest >= 5 {
-		// 多线程测速会有速度损失，加以补偿
-		speed := float64(written) / duration.Seconds() / (1024 * 1024) * (*multipleNum)
-		fmt.Printf("IP %s 端口 %s 下载速度 %.1f MB/s, 补偿系数 %.0f, 原速度 %.1f MB/s\n", ip, strconv.Itoa(*defaultPort), speed, *multipleNum, speedOrignal)
-		return speed
-	} else {
+	if *multipleNum == 1 || *speedTest < 5 {
 		speed := float64(written) / duration.Seconds() / (1024 * 1024)
 		// 输出结果
-		fmt.Printf("IP %s 端口 %s 下载速度 %.1f MB/s\n", ip, strconv.Itoa(*defaultPort), speed)
+		fmt.Printf("-IP %s 端口 %s 下载速度 %.1f MB/s\n", ip, strconv.Itoa(*defaultPort), speed)
+		return speed
+	} else {
+		// 多协程测速会有速度损失，加以补偿
+		speed := float64(written) / duration.Seconds() / (1024 * 1024) * (*multipleNum)
+		fmt.Printf("-IP %s 端口 %s 下载速度 %.1f MB/s, 补偿系数 %.0f, 原速度 %.1f MB/s\n", ip, strconv.Itoa(*defaultPort), speed, *multipleNum, speedOrignal)
 		return speed
 	}
 }
