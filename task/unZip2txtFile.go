@@ -1,4 +1,4 @@
-// Package task unZip2txtFile.go
+// 从ZIP文件中提取所有TXT文件并合并到一个新文件中
 package task
 
 import (

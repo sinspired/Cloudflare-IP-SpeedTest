@@ -26,7 +26,7 @@ import (
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 
-	"ipspeedtest/task"
+	"github.com/sinspired/Cloudflare-IP-SpeedTest/task"
 )
 
 const (
@@ -472,7 +472,6 @@ func checkProxyEnabled() bool {
 	k, err := registry.OpenKey(registry.CURRENT_USER, `Software\Microsoft\Windows\CurrentVersion\Internet Settings`, registry.QUERY_VALUE)
 	if err != nil {
 		fmt.Println("无法打开注册表键:", err)
-		return false
 	}
 	defer k.Close()
 
