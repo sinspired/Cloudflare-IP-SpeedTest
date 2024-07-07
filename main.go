@@ -169,7 +169,9 @@ func main() {
 	}
 
 	// 网络环境检测，如网络不正常自动退出
-	autoNetworkDetection()
+	if !autoNetworkDetection() {
+		return
+	}
 
 	// 调用 autoSetFileName 函数，自动设置输入文件格式
 	autoSetFileName("ip.txt", "ip.zip")
@@ -219,7 +221,7 @@ func main() {
 				wg.Done()
 
 				// 并发检测进度显示
-				fmt.Printf(":已检测: %d 总数: %d 进度: %.2f%%  存活ip:  \033[1;32m\033[5m%d\033[0m\r", countAll, total, percentage, countAlive)
+				fmt.Printf(":已检测: %d 总数: %d 进度: %.2f%%  存活ip: \033[1;32m\033[5m%d\033[0m            \r", countAll, total, percentage, countAlive)
 			}()
 
 			dialer := &net.Dialer{
@@ -302,10 +304,10 @@ func main() {
 					if float64(tcpDuration.Milliseconds()) <= float64(*tcpLimit) {
 						countAlive++ // 记录存活IP数量
 						if ok {
-							fmt.Printf("-发现有效IP %s 位置: %s.%s 延迟 %d 毫秒\n", ip, loc.City, loc.Cca2, tcpDuration.Milliseconds())
+							fmt.Printf("-发现有效IP %s 位置: %s.%s 延迟 %d 毫秒             \n", ip, loc.City, loc.Cca2, tcpDuration.Milliseconds())
 							resultChan <- result{ip, *defaultPort, dataCenter, loc.Region, loc.Cca2, loc.City, fmt.Sprintf("%d", tcpDuration.Milliseconds()), tcpDuration} // 删掉excel中的 ms单位。tcpDuration变量
 						} else {
-							fmt.Printf("-发现有效IP %s 位置信息未知 延迟 %d 毫秒\n", ip, tcpDuration.Milliseconds())
+							fmt.Printf("-发现有效IP %s 位置信息未知 延迟 %d 毫秒             \n", ip, tcpDuration.Milliseconds())
 							resultChan <- result{ip, *defaultPort, dataCenter, "", "", "", fmt.Sprintf("%d", tcpDuration.Milliseconds()), tcpDuration} // 删掉excel中的 ms单位。tcpDuration变量
 						}
 					}
@@ -319,7 +321,7 @@ func main() {
 
 	// 并发检测执行完毕后输出信息
 	if countAll == total {
-		fmt.Printf(":已检测: %d 总数: %d 进度: \033[32m%.2f%%\033[0m  存活ip:  \033[1;32m\033[5m%d\033[0m\r", countAll, total, percentage, countAlive)
+		fmt.Printf(":已检测: %d 总数: %d 进度: \033[32m%.2f%%\033[0m  存活ip:  \033[1;32m\033[5m%d\033[0m            \r", countAll, total, percentage, countAlive)
 		fmt.Printf("\nTCP延迟检测完成！\n")
 	}
 
@@ -334,6 +336,39 @@ func main() {
 	var results []speedtestresult
 	if *speedTest > 0 {
 		fmt.Printf("\n开始下载测速\n")
+		if *speedTest > 5 && *multipleNum == 1 {
+			fmt.Printf("\033[90m> 即将建立\033[0m \033[31m%d\033[0m \033[90m个并发协程，测速可能失真。建议增加\033[0m\033[4;33m %d \033[0m\033[90m倍补偿系数\033[0m\n", *speedTest, *speedTest/5)
+
+			// 创建一个新的读数器
+			reader := bufio.NewReader(os.Stdin)
+			// for 循环检测用户输入
+			for {
+				// 获取用户输入
+				fmt.Print("  请输入补偿系数（默认为1）：")
+				input, err := reader.ReadString('\n')
+				if err != nil {
+					fmt.Println("\033[31m  无法读取输入:\033[0m", err)
+					os.Exit(1)
+				}
+
+				// 去除输入字符串前后的空白字符
+				input = strings.TrimSpace(input)
+
+				// 将用户输入转换为浮点数
+				if input != "" {
+					*multipleNum, err = strconv.ParseFloat(input, 64)
+					if err != nil {
+						fmt.Println("\033[31m  请输入一个有效的数字\033[0m")
+						*multipleNum = 1 // 补偿系数恢复初始值
+						continue
+					}
+				}
+				break
+			}
+			// 在这里使用multipleNum进行计算或其他操作
+			fmt.Printf("\n\033[90m> 并发测速补偿系数已设置为\033[0m \033[32m%.1f\033[0m\n\n", *multipleNum)
+		}
+
 		var wg2 sync.WaitGroup
 		wg2.Add(*speedTest)
 		countSt = 0 // 下载测速进度计数器
@@ -341,14 +376,14 @@ func main() {
 		results = []speedtestresult{}
 		for i := 0; i < *speedTest; i++ {
 			thread <- struct{}{}
-			go func() {
+			go func(id int) {
 				defer func() {
 					<-thread
 					wg2.Done()
 					// 输出下载测速进度
 					percentage := float64(countSt) / float64(total) * 100
 					if percentage == 100 {
-						fmt.Printf("下载测速进度已完成 \033[1;32m%.2f%%\033[0m\r", percentage)
+						fmt.Printf("下载测速进度已完成 \033[1;32m%.2f%%\033[0m                                \r", percentage)
 					}
 				}()
 
@@ -359,9 +394,9 @@ func main() {
 					downloadSpeed := getDownloadSpeed(res.ip)
 					results = append(results, speedtestresult{result: res, downloadSpeed: downloadSpeed})
 
-					fmt.Printf("协程 \033[33m%d\033[0m 下载测速进度 \033[1;32m%.2f%%\033[0m\r", i, percentage)
+					fmt.Printf("协程 \033[33m%d\033[0m 正在检测 %s  总进度 \033[1;32m%.2f%%\033[0m                    \r", id+1, res.ip, percentage)
 				}
-			}()
+			}(i)
 		}
 		wg2.Wait()
 
@@ -433,8 +468,8 @@ func main() {
 	writerUnqualified.Flush()
 	// 清除输出内容
 	// fmt.Print("\033[2J")
-	fmt.Printf("\n> 优质ip写入 \033[90m%s\033[0m 耗时 %d秒\n", *outFile, time.Since(startTime)/time.Second)
-	fmt.Printf("> 低速ip写入 \033[90m%s\033[0m 耗时 %d秒\n", outFileUnqualified, time.Since(startTime)/time.Second)
+	fmt.Printf("\n\033[32m>\033[0m 优质ip写入 \033[90;4m%s\033[0m 耗时 %d 秒\n", *outFile, time.Since(startTime)/time.Second)
+	fmt.Printf("\033[31m>\033[0m 低速ip写入 \033[4;90m%s\033[0m 耗时 %d 秒\n", outFileUnqualified, time.Since(startTime)/time.Second)
 }
 
 // autoNetworkDetection 自动检测网络环境，返回一个bool值
@@ -519,7 +554,7 @@ func checkProxyUrl(urlStr string) bool {
 func downloadWithIEProxy(downloadURL string) ([]byte, error) {
 	proxyFunc := ieproxy.GetProxyFunc()
 	client := &http.Client{
-		Timeout:   2 * time.Second,
+		Timeout:   15 * time.Second,
 		Transport: &http.Transport{Proxy: proxyFunc},
 	}
 
@@ -673,7 +708,7 @@ func getDownloadSpeed(ip string) float64 {
 	}
 	defer conn.Close()
 
-	fmt.Printf("正在测试IP %s 端口 %s\r", ip, strconv.Itoa(*defaultPort))
+	// fmt.Printf("正在测试IP %s 端口 %s\r", ip, strconv.Itoa(*defaultPort))
 	startTime := time.Now()
 	// 创建HTTP客户端
 	client := http.Client{
@@ -691,7 +726,7 @@ func getDownloadSpeed(ip string) float64 {
 	req.Close = true
 	resp, err := client.Do(req)
 	if err != nil {
-		fmt.Printf("-IP %s 端口 %s \033[9m测速无效\033[0m\n", ip, strconv.Itoa(*defaultPort))
+		fmt.Printf("-IP %s 端口 %s \033[9;31m测速无效\033[0m                                 \n", ip, strconv.Itoa(*defaultPort))
 		return 0
 	}
 	defer resp.Body.Close()
@@ -706,12 +741,12 @@ func getDownloadSpeed(ip string) float64 {
 	if *multipleNum == 1 || *speedTest < 5 {
 		speed := float64(written) / duration.Seconds() / (1024 * 1024)
 		// 输出结果
-		fmt.Printf("-IP %s 端口 %s 下载速度 %.1f MB/s\n", ip, strconv.Itoa(*defaultPort), speed)
+		fmt.Printf("-IP %s 端口 %s 下载速度 %.1f MB/s        \n", ip, strconv.Itoa(*defaultPort), speed)
 		return speed
 	} else {
 		// 多协程测速会有速度损失，加以补偿
 		speed := float64(written) / duration.Seconds() / (1024 * 1024) * (*multipleNum)
-		fmt.Printf("-IP %s 端口 %s 下载速度 %.1f MB/s, 补偿系数 %.0f, 原速度 %.1f MB/s\n", ip, strconv.Itoa(*defaultPort), speed, *multipleNum, speedOrignal)
+		fmt.Printf("-IP %s 端口 %s 下载速度 %.1f MB/s, 补偿系数 %.0f × %.1f MB/s\n", ip, strconv.Itoa(*defaultPort), speed, *multipleNum, speedOrignal)
 		return speed
 	}
 }
