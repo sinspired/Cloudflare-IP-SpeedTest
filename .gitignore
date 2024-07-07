@@ -19,7 +19,7 @@
 *.txt
 *.zip
 *.bat
-locations.json
+locations*.json
 
 
 # Dependency directories (remove the comment below to include it)
