@@ -26,16 +26,12 @@ jobs:
           go build -o speedtest
 
       - name: Build for Windows
-        env:
-          GOOS: windows
-          GOARCH: amd64
+        if: runner.os == 'Windows'
         run: |
           go build -o speedtest.exe
-
+      
       - name: Build for Linux
-        env:
-          GOOS: linux
-          GOARCH: amd64
+        if: runner.os == 'Linux'
         run: |
           go build -o speedtest-linux
 
