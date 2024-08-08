@@ -3,84 +3,69 @@ name: Build and Release
 on:
   push:
     # tags:
-    #   - 'v*'
+    #   - '*'
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
-    strategy:
-      matrix:
-        goos: [windows, linux]
-        goarch: [amd64]
-
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v2
+      - uses: actions/checkout@v2
 
-    - name: Set up Go
-      uses: actions/setup-go@v3
-      with:
-        go-version: '1.22.1'
+      - name: Set up Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: 1.22
 
-    - name: Build
-      run: |
-        go mod tidy
-        GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -o speedtest-${{ matrix.goos }}-${{ matrix.goarch }}
+      - name: Install dependencies
+        run: |
+          go get -v -t -d ./...
 
-    - name: Upload artifact
-      uses: actions/upload-artifact@v2
-      with:
-        name: speedtest-${{ matrix.goos }}-${{ matrix.goarch }}
-        path: speedtest-${{ matrix.goos }}-${{ matrix.goarch }}
+      - name: Build
+        run: |
+          go build -o speedtest
 
-  release:
-    needs: build
-    runs-on: ubuntu-latest
+      - name: Build for Windows
+        env:
+          GOOS: windows
+          GOARCH: amd64
+        run: |
+          go build -o speedtest.exe
 
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v2
+      - name: Build for Linux
+        env:
+          GOOS: linux
+          GOARCH: amd64
+        run: |
+          go build -o speedtest-linux
 
-    - name: Download artifacts
-      uses: actions/download-artifact@v2
-      with:
-        name: speedtest-windows-amd64
-        path: ./dist
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          draft: false
+          prerelease: false
 
-    - name: Download artifacts
-      uses: actions/download-artifact@v2
-      with:
-        name: speedtest-linux-amd64
-        path: ./dist
+      - name: Upload Windows Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./speedtest.exe
+          asset_name: speedtest-windows.exe
+          asset_content_type: application/vnd.microsoft.portable-executable
 
-    - name: Create Release
-      id: create_release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: ${{ github.ref }}
-        release_name: Release ${{ github.ref }}
-        draft: false
-        prerelease: false
-
-    - name: Upload Release Asset Windows
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./dist/speedtest-windows-amd64
-        asset_name: speedtest-windows-amd64.exe
-        asset_content_type: application/octet-stream
-
-    - name: Upload Release Asset Linux
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./dist/speedtest-linux-amd64
-        asset_name: speedtest-linux-amd64
-        asset_content_type: application/octet-stream
+      - name: Upload Linux Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./speedtest-linux
+          asset_name: speedtest-linux
+          asset_content_type: application/x-executable
