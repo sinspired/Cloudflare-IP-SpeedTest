@@ -2,66 +2,64 @@ name: Build and Release
 
 on:
   push:
-    # tags:
-    #   - '*'
+    tags:
+      - '*'
 
 jobs:
+
   build:
     runs-on: ubuntu-latest
-
+    
     steps:
-      - uses: actions/checkout@v2
-
-      - name: Set up Go
-        uses: actions/setup-go@v2
-        with:
-          go-version: 1.22
-
-      - name: Install dependencies
-        run: |
-          go get -v -t -d ./...
-
-      - name: Build
-        run: |
-          go build -o speedtest
-
-      - name: Build for Windows
-        if: runner.os == 'Windows'
-        run: |
-          go build -o speedtest.exe
-      
-      - name: Build for Linux
-        if: runner.os == 'Linux'
-        run: |
-          go build -o speedtest-linux
-
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ github.ref }}
-          release_name: Release ${{ github.ref }}
-          draft: false
-          prerelease: false
-
-      - name: Upload Windows Release Asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./speedtest.exe
-          asset_name: speedtest-windows.exe
-          asset_content_type: application/vnd.microsoft.portable-executable
-
-      - name: Upload Linux Release Asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./speedtest-linux
-          asset_name: speedtest-linux
-          asset_content_type: application/x-executable
+    - uses: actions/checkout@v2
+    
+    - name: Set up Go
+      uses: actions/setup-go@v2
+      with:
+        go-version: 1.16
+        
+    - name: Install dependencies
+      run: |
+        go mod tidy
+        
+    - name: Build for Windows
+      env:
+        GOOS: windows
+        GOARCH: amd64
+      run: |  
+        go build -o speedtest.exe
+        
+    - name: Build for Linux
+      run: |
+        go build -o speedtest-linux
+        
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: Release ${{ github.ref }}
+        draft: false
+        prerelease: false
+        
+    - name: Upload Windows Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./speedtest.exe
+        asset_name: speedtest-windows.exe
+        asset_content_type: application/vnd.microsoft.portable-executable
+        
+    - name: Upload Linux Release Asset  
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./speedtest-linux
+        asset_name: speedtest-linux
+        asset_content_type: application/x-executable
