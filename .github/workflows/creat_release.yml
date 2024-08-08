@@ -29,10 +29,6 @@ jobs:
       run: |  
         go build -o speedtest.exe
         
-    - name: Build for Linux
-      run: |
-        go build -tags '!windows' -o speedtest-linux
-        
     - name: Create Release
       id: create_release
       uses: actions/create-release@v1
@@ -51,15 +47,6 @@ jobs:
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
         asset_path: ./speedtest.exe
-        asset_name: speedtest-windows.exe
+        asset_name: speedtest.exe
         asset_content_type: application/vnd.microsoft.portable-executable
         
-    - name: Upload Linux Release Asset  
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./speedtest-linux
-        asset_name: speedtest-linux
-        asset_content_type: application/x-executable
