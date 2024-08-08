@@ -2,8 +2,8 @@ name: Build and Release
 
 on:
   push:
-    tags:
-      - '*'
+    # tags:
+    #   - '*'
 
 jobs:
 
