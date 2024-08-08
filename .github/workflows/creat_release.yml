@@ -31,7 +31,7 @@ jobs:
         
     - name: Build for Linux
       run: |
-        go build -o speedtest-linux
+        go build -tags '!windows' -o speedtest-linux
         
     - name: Create Release
       id: create_release
