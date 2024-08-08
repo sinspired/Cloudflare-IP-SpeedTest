@@ -1,0 +1,85 @@
+name: Build and Release
+
+on:
+  push:
+    # tags:
+    #   - 'v*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        goos: [windows, linux]
+        goarch: [amd64]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Set up Go
+      uses: actions/setup-go@v3
+      with:
+        go-version: '1.17'
+
+    - name: Build
+      run: |
+        GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -o speedtest-${{ matrix.goos }}-${{ matrix.goarch }}
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v2
+      with:
+        name: speedtest-${{ matrix.goos }}-${{ matrix.goarch }}
+        path: speedtest-${{ matrix.goos }}-${{ matrix.goarch }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Download artifacts
+      uses: actions/download-artifact@v2
+      with:
+        name: speedtest-windows-amd64
+        path: ./dist
+
+    - name: Download artifacts
+      uses: actions/download-artifact@v2
+      with:
+        name: speedtest-linux-amd64
+        path: ./dist
+
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: Release ${{ github.ref }}
+        draft: false
+        prerelease: false
+
+    - name: Upload Release Asset Windows
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./dist/speedtest-windows-amd64
+        asset_name: speedtest-windows-amd64.exe
+        asset_content_type: application/octet-stream
+
+    - name: Upload Release Asset Linux
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./dist/speedtest-linux-amd64
+        asset_name: speedtest-linux-amd64
+        asset_content_type: application/octet-stream
