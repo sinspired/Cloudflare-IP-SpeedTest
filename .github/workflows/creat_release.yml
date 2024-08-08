@@ -25,6 +25,7 @@ jobs:
 
     - name: Build
       run: |
+        go mod tidy
         GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -o speedtest-${{ matrix.goos }}-${{ matrix.goarch }}
 
     - name: Upload artifact
