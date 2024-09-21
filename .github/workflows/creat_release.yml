@@ -51,7 +51,7 @@ jobs:
         # release_name: "${{ github.ref_name }} - ${{ steps.tag_description.outputs.description }} | Commit: ${{ steps.commit_message.outputs.message }}"
         release_name: "${{ github.ref_name }} ${{ steps.tag_description.outputs.description }}"
         body: |
-          ${{ github.event_name }}) :
+          ${{ github.action }} :
             ${{ steps.commit_message.outputs.message }}
         draft: false
         prerelease: false
