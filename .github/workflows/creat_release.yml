@@ -34,6 +34,7 @@ jobs:
       run: |
         echo "Ref name: ${{ github.ref_name }}"
         git tag -l --format='%(contents)' ${{ github.ref_name }}
+        git show -s --format='%(contents)' ${{ github.ref_name }})
         TAG_DESCRIPTION=$(git tag -l --format='%(contents)' ${{ github.ref_name }})
         echo ${TAG_DESCRIPTION}
         echo "tag_description=${TAG_DESCRIPTION}" >> $GITHUB_ENV
