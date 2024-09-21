@@ -81,17 +81,12 @@ jobs:
         GOARCH: amd64
       run: |  
         go build -o speedtest.exe
-    
-    - name: Install GitHub CLI
-      run: |
-        sudo apt-get install -y gh
 
+    # 获取标签描述（tag message）
     - name: Get tag description
       id: get_tag_description
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        TAG_DESCRIPTION=$(gh release view ${{ github.ref_name }} --json body --jq '.body')
+        TAG_DESCRIPTION=$(git tag -l --format="%(contents)" ${{ github.ref_name }})
         echo "tag_description=$TAG_DESCRIPTION" >> $GITHUB_ENV
 
     - name: Get latest commit message
