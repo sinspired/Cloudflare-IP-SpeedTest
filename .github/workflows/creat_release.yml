@@ -63,6 +63,12 @@
 #         asset_name: speedtest.exe
 #         asset_content_type: application/vnd.microsoft.portable-executable
 
+
+
+
+
+
+
 name: Go Release Workflow
 
 on:
@@ -72,7 +78,7 @@ on:
 
 jobs:
   build-and-release:
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -85,23 +91,24 @@ jobs:
           go-version: '1.22'
 
       - name: Build
-        run: go build -o speedtest.exe main.go
+        run: GOOS=windows GOARCH=amd64 go build -o speedtest.exe main.go
 
       - name: Get tag info
         id: tag
         run: |
-          echo "TAG_NAME=${{ github.ref_name }}" >> $GITHUB_OUTPUT
-          echo "TAG_MESSAGE=$(git tag -l --format='%(contents)' ${{ github.ref_name }})" >> $GITHUB_OUTPUT
-        shell: bash
+          echo "TAG_NAME=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          echo "TAG_MESSAGE=$(git tag -l --format='%(contents)' ${GITHUB_REF#refs/tags/})" >> $GITHUB_OUTPUT
 
       - name: Get commit messages
         id: commits
         run: |
-          echo "COMMIT_MSG=$(git log -1 --pretty=%B)" >> $GITHUB_OUTPUT
-          echo "COMMIT_HISTORY<<EOF" >> $GITHUB_OUTPUT
-          git log $(git describe --tags --abbrev=0 ${{ github.ref_name }}^)...${{ github.ref_name }} --pretty=format:"- %s" >> $GITHUB_OUTPUT
+          echo "COMMIT_MSG<<EOF" >> $GITHUB_OUTPUT
+          git log -1 --pretty=%B >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
-        shell: bash
+          
+          echo "COMMIT_HISTORY<<EOF" >> $GITHUB_OUTPUT
+          git log $(git describe --tags --abbrev=0 ${GITHUB_REF#refs/tags/}^)...${GITHUB_REF#refs/tags/} --pretty=format:"- %s" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
