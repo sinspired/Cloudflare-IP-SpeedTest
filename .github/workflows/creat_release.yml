@@ -29,11 +29,14 @@ jobs:
         GOARCH: amd64
       run: go build -o speedtest.exe
     
-    # - name: Get tag description
-    #   id: tag_description
-    #   run: |
-    #     TAG_DESCRIPTION=$(git tag -l --format='%(contents)' ${{ github.ref_name }})
-    #     echo "tag_description=${TAG_DESCRIPTION}" >> $GITHUB_ENV
+    - name: Get tag description
+      id: tag_description
+      run: |
+        git fetch --tags
+        echo "Ref name: ${{ github.ref_name }}"
+        TAG_DESCRIPTION=$(git tag -l --format='%(contents)' ${{ github.ref_name }})
+        echo $${TAG_DESCRIPTION}
+        echo "tag_description1111=${TAG_DESCRIPTION}" >> $GITHUB_ENV
 
     - name: Get latest commit message
       id: commit_message
@@ -43,13 +46,12 @@ jobs:
     
     - name: Create Release
       id: create_release
-      uses: softprops/action-gh-release@v1
+      uses: actions/create-release@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        TAG_DESCRIPTION: ${{ github.event.head_commit.message}}
       with:
         tag_name: ${{ github.ref_name }}
-        name: "${{ github.ref_name }} ${{ env.tag_description }}"
+        release_name: "${{ github.ref_name }} ${{ env.tag_description1111 }}"
         # body: |
         #   ${{ github.action }} :${{ env.commit_message }}
         draft: false
@@ -64,3 +66,4 @@ jobs:
         asset_path: ./speedtest.exe
         asset_name: speedtest.exe
         asset_content_type: application/vnd.microsoft.portable-executable
+
