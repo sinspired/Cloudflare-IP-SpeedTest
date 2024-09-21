@@ -90,6 +90,14 @@ jobs:
         echo $TAG_DESCRIPTION
         echo "tag_description=$TAG_DESCRIPTION" >> $GITHUB_ENV
 
+        $tag = git describe --tags --abbrev=0
+        echo $tag
+        echo "LATEST_TAG=$tag" >> $env:GITHUB_ENV
+        $tagMessage = git tag -l --format='%(contents)' $LATEST_TAG
+        echo $tagMessage
+        echo "debug————————————————————————————————"
+        echo "TAG_MESSAGE=$tagMessage" >> $env:GITHUB_ENV
+
 
         #     - name: Get tag info
         # id: get_tag_info
