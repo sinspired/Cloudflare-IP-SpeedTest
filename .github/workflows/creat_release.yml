@@ -35,7 +35,7 @@ jobs:
         git fetch --tags
         echo "Ref name: ${{ github.ref_name }}"
         TAG_DESCRIPTION=$(git tag -l --format='%(contents)' ${{ github.ref_name }})
-        echo $${TAG_DESCRIPTION}
+        echo ${TAG_DESCRIPTION}
         echo "tag_description1111=${TAG_DESCRIPTION}" >> $GITHUB_ENV
 
     - name: Get latest commit message
