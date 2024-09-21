@@ -12,9 +12,7 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-    
+
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
@@ -32,13 +30,7 @@ jobs:
     - name: Get tag description
       id: tag_description
       run: |
-        echo "Ref name: ${{ github.ref_name }}"
-        git tag -l --format='%(contents)' ${{ github.ref_name }}
-        TAG_DESCRIPTION2222=$(git show -s --format='%(contents)' ${{ github.ref_name }})
-        echo "tag_description2222=${TAG_DESCRIPTION2222}" >> $GITHUB_ENV
-        echo ${TAG_DESCRIPTION2222}
         TAG_DESCRIPTION=$(git tag -l --format='%(contents)' ${{ github.ref_name }})
-        echo ${TAG_DESCRIPTION}
         echo "tag_description=${TAG_DESCRIPTION}" >> $GITHUB_ENV
 
     - name: Get latest commit message
