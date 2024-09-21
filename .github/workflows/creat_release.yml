@@ -32,18 +32,33 @@ jobs:
     - name: Get tag description
       id: tag_description
       run: |
-        TAG_DESCRIPTION=$(git tag -l --format='%(contents)' ${{ github.ref_name }})
-        echo ${TAG_DESCRIPTION}
+        TAG_NAME="${{ github.ref_name }}"
+        # 尝试获取附注标签的描述
+        TAG_DESCRIPTION=$(git tag -l --format='%(contents)' "$TAG_NAME" | sed -e '/^$/d' | sed -e 's/^[[:space:]]*//')
+        
+        # 如果没有获取到描述，可能是轻量级标签，尝试获取关联的提交信息
+        if [ -z "$TAG_DESCRIPTION" ]; then
+          TAG_DESCRIPTION=$(git show -s --format=%B "$TAG_NAME" | sed -e '/^$/d' | sed -e 's/^[[:space:]]*//')
+        fi
+        
+        # 如果仍然没有描述，使用默认值
+        if [ -z "$TAG_DESCRIPTION" ]; then
+          TAG_DESCRIPTION="No description provided"
+        fi
+        
+        # 输出描述，限制长度为50个字符
+        TAG_DESCRIPTION="${TAG_DESCRIPTION:0:50}"
         echo "description=${TAG_DESCRIPTION}" >> $GITHUB_OUTPUT
     
     - name: Get latest commit message
       id: commit_message
       run: |
-        COMMIT_MESSAGE=$(git log -1 --pretty=%B)
+        COMMIT_MESSAGE=$(git log -1 --format=%B)
+        # 限制提交信息长度为50个字符
+        COMMIT_MESSAGE="${COMMIT_MESSAGE:0:50}"
         echo "message=${COMMIT_MESSAGE}" >> $GITHUB_OUTPUT
     
     - name: Create Release
-      id: create_release
       uses: actions/create-release@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
