@@ -1,3 +1,56 @@
+# name: Build and Release
+
+# on:
+#   push:
+#     tags:
+#       - 'v*'
+
+# jobs:
+
+#   build:
+#     runs-on: ubuntu-latest
+    
+#     steps:
+#     - uses: actions/checkout@v2
+    
+#     - name: Set up Go
+#       uses: actions/setup-go@v2
+#       with:
+#         go-version: 1.22
+        
+#     - name: Install dependencies
+#       run: |
+#         go mod tidy
+        
+#     - name: Build for Windows
+#       env:
+#         GOOS: windows
+#         GOARCH: amd64
+#       run: |  
+#         go build -o speedtest.exe
+        
+#     - name: Create Release
+#       id: create_release
+#       uses: actions/create-release@v1
+#       env:
+#         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#       with:
+#         tag_name: ${{ github.ref_name }}
+#         release_name: Release ${{ github.ref_name }}
+#         draft: false
+#         prerelease: false
+        
+#     - name: Upload Windows Release Asset
+#       uses: actions/upload-release-asset@v1
+#       env:
+#         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#       with:
+#         upload_url: ${{ steps.create_release.outputs.upload_url }}
+#         asset_path: ./speedtest.exe
+#         asset_name: speedtest.exe
+#         asset_content_type: application/vnd.microsoft.portable-executable
+        
+
 name: Build and Release
 
 on:
@@ -28,6 +81,22 @@ jobs:
         GOARCH: amd64
       run: |  
         go build -o speedtest.exe
+    
+    - name: Install GitHub CLI
+      run: |
+        sudo apt-get install -y gh
+
+    - name: Get tag description
+      id: get_tag_description
+      run: |
+        TAG_DESCRIPTION=$(gh release view ${{ github.ref_name }} --json body --jq '.body')
+        echo "tag_description=$TAG_DESCRIPTION" >> $GITHUB_ENV
+
+    - name: Get latest commit message
+      id: get_commit_message
+      run: |
+        COMMIT_MESSAGE=$(git log -1 --pretty=%B)
+        echo "commit_message=$COMMIT_MESSAGE" >> $GITHUB_ENV
         
     - name: Create Release
       id: create_release
@@ -36,7 +105,7 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         tag_name: ${{ github.ref_name }}
-        release_name: Release ${{ github.ref_name }}
+        release_name: "Release ${{ github.ref_name }} - ${{ env.tag_description }} | Commit: ${{ env.commit_message }}"
         draft: false
         prerelease: false
         
@@ -49,4 +118,3 @@ jobs:
         asset_path: ./speedtest.exe
         asset_name: speedtest.exe
         asset_content_type: application/vnd.microsoft.portable-executable
-        
