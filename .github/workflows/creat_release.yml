@@ -88,6 +88,8 @@ jobs:
 
     - name: Get tag description
       id: get_tag_description
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         TAG_DESCRIPTION=$(gh release view ${{ github.ref_name }} --json body --jq '.body')
         echo "tag_description=$TAG_DESCRIPTION" >> $GITHUB_ENV
