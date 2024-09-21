@@ -102,13 +102,17 @@ jobs:
       - name: Get commit messages
         id: commits
         run: |
-          echo "COMMIT_MSG<<EOF" >> $GITHUB_OUTPUT
-          git log -1 --pretty=%B >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          COMMIT_MSG=$(git log -1 --pretty=%B)
+          COMMIT_MSG="${COMMIT_MSG//'%'/'%25'}"
+          COMMIT_MSG="${COMMIT_MSG//$'\n'/'%0A'}"
+          COMMIT_MSG="${COMMIT_MSG//$'\r'/'%0D'}"
+          echo "COMMIT_MSG=$COMMIT_MSG" >> $GITHUB_OUTPUT
           
-          echo "COMMIT_HISTORY<<EOF" >> $GITHUB_OUTPUT
-          git log $(git describe --tags --abbrev=0 ${GITHUB_REF#refs/tags/}^)...${GITHUB_REF#refs/tags/} --pretty=format:"- %s" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          COMMIT_HISTORY=$(git log $(git describe --tags --abbrev=0 ${GITHUB_REF#refs/tags/}^)...${GITHUB_REF#refs/tags/} --pretty=format:"- %s")
+          COMMIT_HISTORY="${COMMIT_HISTORY//'%'/'%25'}"
+          COMMIT_HISTORY="${COMMIT_HISTORY//$'\n'/'%0A'}"
+          COMMIT_HISTORY="${COMMIT_HISTORY//$'\r'/'%0D'}"
+          echo "COMMIT_HISTORY=$COMMIT_HISTORY" >> $GITHUB_OUTPUT
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
