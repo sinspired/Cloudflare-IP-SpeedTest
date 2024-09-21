@@ -77,52 +77,57 @@ on:
       - 'v*'
 
 jobs:
-  build-and-release:
+  create-release:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
       - name: Set up Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           go-version: '1.22'
 
       - name: Build
         run: GOOS=windows GOARCH=amd64 go build -o speedtest.exe main.go
 
-      - name: Get tag info
+      - name: Get version
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Get tag message
         id: tag
         run: |
-          echo "TAG_NAME=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-          echo "TAG_MESSAGE=$(git tag -l --format='%(contents)' ${GITHUB_REF#refs/tags/})" >> $GITHUB_OUTPUT
+          TAG_MESSAGE=$(git tag -l --format='%(contents)' ${{ steps.get_version.outputs.VERSION }})
+          echo "message<<EOF" >> $GITHUB_OUTPUT
+          echo "$TAG_MESSAGE" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
-      - name: Get commit messages
-        id: commits
+      - name: Get latest commit message
+        id: commit_message
         run: |
-          COMMIT_MSG=$(git log -1 --pretty=%B)
-          COMMIT_MSG="${COMMIT_MSG//'%'/'%25'}"
-          COMMIT_MSG="${COMMIT_MSG//$'\n'/'%0A'}"
-          COMMIT_MSG="${COMMIT_MSG//$'\r'/'%0D'}"
-          echo "COMMIT_MSG=$COMMIT_MSG" >> $GITHUB_OUTPUT
-          
-          COMMIT_HISTORY=$(git log $(git describe --tags --abbrev=0 ${GITHUB_REF#refs/tags/}^)...${GITHUB_REF#refs/tags/} --pretty=format:"- %s")
-          COMMIT_HISTORY="${COMMIT_HISTORY//'%'/'%25'}"
-          COMMIT_HISTORY="${COMMIT_HISTORY//$'\n'/'%0A'}"
-          COMMIT_HISTORY="${COMMIT_HISTORY//$'\r'/'%0D'}"
-          echo "COMMIT_HISTORY=$COMMIT_HISTORY" >> $GITHUB_OUTPUT
+          echo "message<<EOF" >> $GITHUB_OUTPUT
+          git log -1 --pretty=%B >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Get commit history
+        id: commit_history
+        run: |
+          echo "messages<<EOF" >> $GITHUB_OUTPUT
+          git log $(git describe --tags --abbrev=0 ${{ steps.get_version.outputs.VERSION }}^)...${{ steps.get_version.outputs.VERSION }} --pretty=format:"- %s" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
           files: speedtest.exe
-          name: ${{ steps.tag.outputs.TAG_NAME }} - ${{ steps.tag.outputs.TAG_MESSAGE }}
+          name: ${{ steps.get_version.outputs.VERSION }} - ${{ steps.tag.outputs.message }}
           body: |
-            更新：${{ steps.commits.outputs.COMMIT_MSG }}
+            更新：${{ steps.commit_message.outputs.message }}
 
             历次提交描述：
-            ${{ steps.commits.outputs.COMMIT_HISTORY }}
+            ${{ steps.commit_history.outputs.messages }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
