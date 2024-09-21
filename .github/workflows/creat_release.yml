@@ -6,7 +6,7 @@ on:
       - 'v*'
 
 jobs:
-  build:
+  build-release:
     runs-on: ubuntu-latest
     
     steps:
@@ -33,13 +33,13 @@ jobs:
       id: tag_description
       run: |
         TAG_DESCRIPTION=$(git tag -l --format='%(contents)' ${{ github.ref_name }})
-        echo "description=${TAG_DESCRIPTION}" >> $GITHUB_OUTPUT
+        echo "tag_description=${TAG_DESCRIPTION}" >> $GITHUB_ENV
     
     - name: Get latest commit message
       id: commit_message
       run: |
         COMMIT_MESSAGE=$(git log -1 --pretty=%B)
-        echo "message=${COMMIT_MESSAGE}" >> $GITHUB_OUTPUT
+        echo "commit_message=${COMMIT_MESSAGE}" >> $GITHUB_ENV
     
     - name: Create Release
       id: create_release
@@ -48,11 +48,9 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         tag_name: ${{ github.ref_name }}
-        # release_name: "${{ github.ref_name }} - ${{ steps.tag_description.outputs.description }} | Commit: ${{ steps.commit_message.outputs.message }}"
-        release_name: "${{ github.ref_name }} ${{ steps.tag_description.outputs.description }}"
-        body: |
-          ${{ github.action }} :
-            ${{ steps.commit_message.outputs.message }}
+        release_name: "${{ github.ref_name }} ${{ env.tag_description }}"
+        # body: |
+        #   ${{ github.action }} :${{ env.commit_message }}
         draft: false
         prerelease: false
     
