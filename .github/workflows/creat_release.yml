@@ -92,14 +92,13 @@ jobs:
 
         $tag = git describe --tags --abbrev=0
         echo $tag
-        echo "LATEST_TAG=$tag" >> $env:GITHUB_ENV
+        echo "LATEST_TAG=$tag" >> $GITHUB_ENV
         $tagMessage = git tag -l --format='%(contents)' $LATEST_TAG
         echo $tagMessage
-        echo "debug————————————————————————————————"
-        echo "TAG_MESSAGE=$tagMessage" >> $env:GITHUB_ENV
+        echo "TAG_MESSAGE=$tagMessage" >> $GITHUB_ENV
 
 
-        #     - name: Get tag info
+        # - name: Get tag info
         # id: get_tag_info
         # shell: pwsh
         # run: |
@@ -121,7 +120,8 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         tag_name: ${{ github.ref_name }}
-        release_name: "Release ${{ github.ref_name }} - ${{ env.tag_description }} | Commit: ${{ env.commit_message }}"
+        # release_name: "Release ${{ github.ref_name }} - ${{ env.tag_description }} | Commit: ${{ env.commit_message }}"
+        release_name: "Release ${{ github.ref_name }} - $TAG_DESCRIPTION | Commit: ${{ env.commit_message }}"
         draft: false
         prerelease: false
         
