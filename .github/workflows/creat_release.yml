@@ -86,7 +86,7 @@ jobs:
     - name: Get tag description
       id: get_tag_description
       run: |
-        TAG_DESCRIPTION=$(git tag -l --format="%(contents)" ${{ github.ref_name }})
+        TAG_DESCRIPTION=$(git show ${{ github.ref_name }} | sed -n '/^ *$/q;p' | tail -n +5)
         echo ${{ github.ref_name }}
         echo $TAG_DESCRIPTION
         echo "tag_description=$TAG_DESCRIPTION" >> $GITHUB_ENV
