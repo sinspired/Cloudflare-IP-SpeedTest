@@ -1,4 +1,69 @@
-name: Build and Release
+# name: Build and Release
+
+# on:
+#   push:
+#     tags:
+#       - 'v*'
+
+# jobs:
+#   build:
+#     runs-on: ubuntu-latest
+    
+#     steps:
+#     - name: Checkout code
+#       uses: actions/checkout@v4
+#       with:
+#         fetch-depth: 0
+    
+#     - name: Set up Go
+#       uses: actions/setup-go@v5
+#       with:
+#         go-version: '1.22'
+    
+#     - name: Install dependencies
+#       run: go mod tidy
+    
+#     - name: Build for Windows
+#       env:
+#         GOOS: windows
+#         GOARCH: amd64
+#       run: go build -o speedtest.exe
+    
+#     - name: Get tag description
+#       id: tag_description
+#       run: |
+#         TAG_DESCRIPTION=$(git tag -l --format='%(contents)' ${{ github.ref_name }})
+#         echo ${TAG_DESCRIPTION}
+#         echo "description=${TAG_DESCRIPTION}" >> $GITHUB_OUTPUT
+    
+#     - name: Get latest commit message
+#       id: commit_message
+#       run: |
+#         COMMIT_MESSAGE=$(git log -1 --pretty=%B)
+#         echo "message=${COMMIT_MESSAGE}" >> $GITHUB_OUTPUT
+    
+#     - name: Create Release
+#       id: create_release
+#       uses: actions/create-release@v1
+#       env:
+#         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#       with:
+#         tag_name: ${{ github.ref_name }}
+#         release_name: "Release ${{ github.ref_name }} - ${{ steps.tag_description.outputs.description }} | Commit: ${{ steps.commit_message.outputs.message }}"
+#         draft: false
+#         prerelease: false
+    
+#     - name: Upload Windows Release Asset
+#       uses: actions/upload-release-asset@v1
+#       env:
+#         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#       with:
+#         upload_url: ${{ steps.create_release.outputs.upload_url }}
+#         asset_path: ./speedtest.exe
+#         asset_name: speedtest.exe
+#         asset_content_type: application/vnd.microsoft.portable-executable
+
+name: Go Release Workflow
 
 on:
   push:
@@ -6,74 +71,47 @@ on:
       - 'v*'
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    
+  build-and-release:
+    runs-on: windows-latest
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-    
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: '1.22'
-    
-    - name: Install dependencies
-      run: go mod tidy
-    
-    - name: Build for Windows
-      env:
-        GOOS: windows
-        GOARCH: amd64
-      run: go build -o speedtest.exe
-    
-    - name: Get tag description
-      id: tag_description
-      run: |
-        TAG_NAME="${{ github.ref_name }}"
-        # 尝试获取附注标签的描述
-        TAG_DESCRIPTION=$(git tag -l --format='%(contents)' "$TAG_NAME" | sed -e '/^$/d' | sed -e 's/^[[:space:]]*//')
-        
-        # 如果没有获取到描述，可能是轻量级标签，尝试获取关联的提交信息
-        if [ -z "$TAG_DESCRIPTION" ]; then
-          TAG_DESCRIPTION=$(git show -s --format=%B "$TAG_NAME" | sed -e '/^$/d' | sed -e 's/^[[:space:]]*//')
-        fi
-        
-        # 如果仍然没有描述，使用默认值
-        if [ -z "$TAG_DESCRIPTION" ]; then
-          TAG_DESCRIPTION="No description provided"
-        fi
-        
-        # 输出描述，限制长度为50个字符
-        TAG_DESCRIPTION="${TAG_DESCRIPTION:0:50}"
-        echo "description=${TAG_DESCRIPTION}" >> $GITHUB_OUTPUT
-    
-    - name: Get latest commit message
-      id: commit_message
-      run: |
-        COMMIT_MESSAGE=$(git log -1 --format=%B)
-        # 限制提交信息长度为50个字符
-        COMMIT_MESSAGE="${COMMIT_MESSAGE:0:50}"
-        echo "message=${COMMIT_MESSAGE}" >> $GITHUB_OUTPUT
-    
-    - name: Create Release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: ${{ github.ref_name }}
-        release_name: "Release ${{ github.ref_name }} - ${{ steps.tag_description.outputs.description }} | Commit: ${{ steps.commit_message.outputs.message }}"
-        draft: false
-        prerelease: false
-    
-    - name: Upload Windows Release Asset
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./speedtest.exe
-        asset_name: speedtest.exe
-        asset_content_type: application/vnd.microsoft.portable-executable
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.22'
+
+      - name: Build
+        run: go build -o speedtest.exe main.go
+
+      - name: Get tag info
+        id: tag
+        run: |
+          echo "TAG_NAME=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          echo "TAG_MESSAGE=$(git tag -l --format='%(contents)' ${{ github.ref_name }})" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: Get commit messages
+        id: commits
+        run: |
+          echo "COMMIT_MSG=$(git log -1 --pretty=%B)" >> $GITHUB_OUTPUT
+          echo "COMMIT_HISTORY<<EOF" >> $GITHUB_OUTPUT
+          git log $(git describe --tags --abbrev=0 ${{ github.ref_name }}^)...${{ github.ref_name }} --pretty=format:"- %s" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: speedtest.exe
+          name: ${{ steps.tag.outputs.TAG_NAME }} - ${{ steps.tag.outputs.TAG_MESSAGE }}
+          body: |
+            更新：${{ steps.commits.outputs.COMMIT_MSG }}
+
+            历次提交描述：
+            ${{ steps.commits.outputs.COMMIT_HISTORY }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
