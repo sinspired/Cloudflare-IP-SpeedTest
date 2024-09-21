@@ -33,6 +33,7 @@ jobs:
       id: tag_description
       run: |
         TAG_DESCRIPTION=$(git tag -l --format='%(contents)' ${{ github.ref_name }})
+        echo ${TAG_DESCRIPTION}
         echo "description=${TAG_DESCRIPTION}" >> $GITHUB_OUTPUT
     
     - name: Get latest commit message
