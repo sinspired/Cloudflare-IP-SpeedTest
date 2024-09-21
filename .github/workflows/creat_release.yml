@@ -87,7 +87,18 @@ jobs:
       id: get_tag_description
       run: |
         TAG_DESCRIPTION=$(git tag -l --format="%(contents)" ${{ github.ref_name }})
+        echo $TAG_DESCRIPTION
         echo "tag_description=$TAG_DESCRIPTION" >> $GITHUB_ENV
+
+
+        #     - name: Get tag info
+        # id: get_tag_info
+        # shell: pwsh
+        # run: |
+        #   $tag = git describe --tags --abbrev=0
+        #   echo "LATEST_TAG=$tag" >> $env:GITHUB_ENV
+        #   $tagMessage = git tag -l --format='%(contents)' $LATEST_TAG
+        #   echo "TAG_MESSAGE=$tagMessage" >> $env:GITHUB_ENV
 
     - name: Get latest commit message
       id: get_commit_message
